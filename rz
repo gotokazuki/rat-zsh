@@ -1,0 +1,239 @@
+#!/usr/bin/env zsh
+# rat-zsh (rz) - minimal zsh plugin manager
+# deps: zsh, git
+
+# set -e
+set -euo pipefail
+setopt EXTENDED_GLOB
+autoload -Uz is-at-least
+
+# path
+typeset -g RAT_ZSH_HOME="${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}"
+typeset -g RZ_BIN="$RAT_ZSH_HOME/bin"
+typeset -g RZ_PLUGINS="$RAT_ZSH_HOME/plugins"
+typeset -g RZ_REPOS="$RAT_ZSH_HOME/repos"
+typeset -g RZ_CONFIG="$RAT_ZSH_HOME/config.toml"
+
+mkdir -p "$RZ_BIN" "$RZ_PLUGINS" "$RZ_REPOS"
+
+# utils
+_rz_slug() { print -r -- "${1//\//__}"; }
+_rz_die()  { print -u2 -- "rz: $*"; return 1; }
+_rz_info() { print -r -- "rz: $*"; }
+
+_rz_repo_url() {
+  local source="$1" repo="$2"
+  case "$source" in
+    github) print -r -- "https://github.com/$repo.git" ;;
+    *)      print -r -- "$repo" ;; # future: gitlab etc.
+  esac
+}
+
+# toml parser
+# expected format
+# [[plugins]]
+# key = "value"
+# key = "value"
+_rz_parse_plugins() {
+  awk '
+    BEGIN {
+      inblk = 0
+      source=""; repo=""; rev=""; file=""; type=""; name=""
+    }
+
+    function flush() {
+      if (inblk) {
+        printf("%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", source, repo, rev, file, type, name)
+      }
+      source=""; repo=""; rev=""; file=""; type=""; name=""
+      inblk = 1
+    }
+
+    function ltrim(s){ sub(/^[[:space:]]+/, "", s); return s }
+    function rtrim(s){ sub(/[[:space:]]+$/, "", s); return s }
+    function trim(s){ return rtrim(ltrim(s)) }
+
+    /^[ \x1f]*#/ { next }
+    /^[ \x1f]*$/ { next }
+
+    {
+      line = $0
+      line = trim(line)
+    }
+
+    (index(line, "[[plugins]]") == 1) {
+      flush()
+      next
+    }
+
+    inblk && index(line, "=") > 0 {
+      pos = index(line, "=")
+      key = substr(line, 1, pos-1)
+      val = substr(line, pos+1)
+
+      key = trim(key)
+      val = trim(val)
+
+      if (substr(val,1,1) == "\"" && substr(val, length(val),1) == "\"") {
+        val = substr(val, 2, length(val)-2)
+      }
+
+      if (key == "source")      source = val
+      else if (key == "repo")   repo   = val
+      else if (key == "rev")    rev    = val
+      else if (key == "file")   file   = val
+      else if (key == "type")   type   = val
+      else if (key == "name")   name   = val
+
+      next
+    }
+
+    END {
+      if (inblk) {
+        printf("%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", source, repo, rev, file, type, name)
+      }
+    }
+  ' "$RZ_CONFIG"
+}
+
+# sync one
+_rz_sync_one() {
+  local source="$1" repo="$2" rev="$3" file="$4" type="$5" name="$6"
+
+  [[ -z "$repo" ]] && return 0
+
+  local slug url repo_dir
+  slug="$(_rz_slug "$repo")"
+  url="$(_rz_repo_url "$source" "$repo")"
+
+  repo_dir="$RZ_REPOS/$slug"
+
+  if [[ -d "$repo_dir/.git" ]]; then
+    git -C "$repo_dir" fetch --depth=1 origin >/dev/null 2>&1 || _rz_die "fetch failed: $repo"
+    git -C "$repo_dir" submodule update --init --recursive >/dev/null 2>&1
+  else
+    git clone --depth=1 --recurse-submodules "$url" "$repo_dir" >/dev/null 2>&1 || _rz_die "clone failed: $repo"
+  fi
+
+  if [[ -n "$rev" ]]; then
+    git -C "$repo_dir" fetch --tags --depth=1 origin "$rev" >/dev/null 2>&1 || true
+    git -C "$repo_dir" checkout -q "$rev" 2>/dev/null || git -C "$repo_dir" checkout -q "tags/$rev" 2>/dev/null || true
+  else
+    # best-effort: try default branch
+    git -C "$repo_dir" reset -q --hard HEAD
+  fi
+
+  # symlink into plugins
+  local plug_name="${name:-$slug}"
+  local link="$RZ_PLUGINS/$plug_name"
+  rm -f "$link"
+
+  if [[ "$type" == "fpath" ]]; then
+    ln -s "$repo_dir" "$link"
+  else
+    # source type
+    local srcfile
+    if [[ -n "$file" && -f "$repo_dir/$file" ]]; then
+      srcfile="$repo_dir/$file"
+    else
+      # fallback: guess a plugin file
+      local f
+      for f in "$repo_dir"/*(.N); do
+        [[ "$f" == *.plugin.zsh || "$f" == *.zsh || "$f" == *.zsh-theme ]] && { srcfile="$f"; break; }
+      done
+    fi
+    [[ -z "$srcfile" ]] && _rz_die "no source file found in $repo_dir"
+    ln -s "$srcfile" "$link"
+  fi
+}
+
+# commands
+rz_init() {
+  cat <<'EOS'
+# rat-zsh init
+if [[ -z "${_RZ_INIT:-}" ]]; then
+  typeset -g _RZ_INIT=1
+  typeset -g RAT_ZSH_HOME="${RAT_ZSH_HOME:-$HOME/.rz}"
+  typeset -g RZ_BIN="$RAT_ZSH_HOME/bin"
+  typeset -g RZ_PLUGINS="$RAT_ZSH_HOME/plugins"
+
+  export PATH="$RZ_BIN:$PATH"
+
+  # fpath for completion-only plugins
+  fpath=("$RZ_PLUGINS" $fpath)
+
+  # compinit once
+  autoload -Uz compinit
+  if [[ -z "${_RZ_COMPINIT_DONE:-}" ]]; then
+    typeset -g _RZ_COMPINIT_DONE=1
+    compinit -u
+  fi
+
+  # source *.zsh / *.plugin.zsh / *.zsh-theme
+  for p in "$RZ_PLUGINS"/*(-N); do
+    if [[ -L "$p" && -f "$p" ]]; then
+      source "$p"
+      continue
+    fi
+    case "$p" in
+      *.zsh|*.plugin.zsh|*.zsh-theme) source "$p" ;;
+    esac
+  done
+fi
+EOS
+}
+
+rz_sync() {
+  [[ -f "$RZ_CONFIG" ]] || _rz_die "config not found: $RZ_CONFIG"
+
+  local lines
+  lines="$(_rz_parse_plugins)"
+
+  if [[ -z "$lines" ]]; then
+    _rz_info "no plugins in $RZ_CONFIG"
+    return 0
+  fi
+
+  local IFS=$'\x1f'
+  local source repo rev file type name
+  while IFS=$'\x1f' read -r source repo rev file type name; do
+    _rz_sync_one "$source" "$repo" "$rev" "$file" "$type" "$name"
+  done <<< "$lines"
+
+  _rz_info "sync done"
+}
+
+rz_list() {
+  [[ -f "$RZ_CONFIG" ]] || _rz_die "config not found: $RZ_CONFIG"
+  local US=$'\x1f'
+  _rz_parse_plugins | awk -v FS="$US" '{
+    t = ($5=="" ? "source" : $5)
+    display = ($6 != "" ? $6 : $2)
+    printf "- %s (%s) [%s]\n", display, $1, t
+  }'
+}
+
+rz_home() { print -r -- "$RAT_ZSH_HOME"; }
+
+# dispatch
+case "$1" in
+  init)  rz_init ;;
+  sync)  rz_sync ;;
+  list)  rz_list ;;
+  home)  rz_home ;;
+  ""|help|-h|--help)
+    cat <<EOF
+rat-zsh (rz) - minimal zsh plugin manager
+RAT_ZSH_HOME=${RAT_ZSH_HOME}
+
+Usage:
+  rz init     # print init code (add to .zshrc: eval "\$("\$(rz home)/bin/rz" init)")
+  rz sync     # fetch/update plugins defined in \$RAT_ZSH_HOME/config.toml
+  rz list     # list parsed plugins
+  rz home     # show RAT_ZSH_HOME
+EOF
+    ;;
+  *)
+    _rz_die "unknown command: $1"
+    ;;
+esac
