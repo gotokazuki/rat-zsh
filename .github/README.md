@@ -44,18 +44,6 @@ source = "github"
 repo   = "zsh-users/zsh-syntax-highlighting"
 type   = "source"
 file   = "zsh-syntax-highlighting.zsh"
-
-[[plugins]]
-source = "github"
-repo   = "zsh-users/zsh-history-substring-search"
-type   = "source"
-file   = "zsh-history-substring-search.zsh"
-
-[[plugins]]
-source = "github"
-repo   = "olets/zsh-abbr"
-type   = "source"
-file   = "zsh-abbr.zsh"
 ```
 
 ### Supported keys
