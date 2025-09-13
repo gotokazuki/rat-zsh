@@ -1,0 +1,19 @@
+name: Lint
+
+on:
+  pull_request:
+
+jobs:
+  zsh-syntax-check:
+    name: zsh syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install zsh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+      - name: Syntax check (install.zsh)
+        run: zsh -n install.zsh
+      - name: Syntax check (rz)
+        run: zsh -n rz
