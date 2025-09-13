@@ -111,21 +111,27 @@ eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"
 ## Commands
 
 ```zsh
-rz init   # Print initialization code for .zshrc
-rz sync   # Clone/update plugins defined in config.toml
-rz list   # List parsed plugins
-rz home   # Show RAT_ZSH_HOME
-rz order  # Show the effective plugin load order
+rz init     # Print initialization code for .zshrc
+rz sync     # Clone/update plugins defined in config.toml
+rz upgrade  # Update rat-zsh itself to the latest release
+rz list     # List parsed plugins
+rz home     # Show RAT_ZSH_HOME
+rz order    # Show the effective plugin load order
 ```
 
 ## Update
 
+Update Rat Zsh itself:
+
+```zsh
+rz upgrade
+```
+
+Update plugins:
+
 ```zsh
 rz sync
 ```
-
-This updates both plugins and rat-zsh itself.  
-Internally, rat-zsh pulls the latest changes from its own GitHub repository along with plugin updates.
 
 ## Uninstall
 
@@ -133,7 +139,7 @@ Internally, rat-zsh pulls the latest changes from its own GitHub repository alon
 rm -rf "$(rz home)"
 ```
 
-Then remove the line `eval "$("$(rz home)/bin/rz" init)"` from `.zshrc`.
+Then remove the line `eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"` from `.zshrc`.
 
 ## Recommended setting
 

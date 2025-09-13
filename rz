@@ -12,6 +12,7 @@ typeset -g RZ_BIN="$RAT_ZSH_HOME/bin"
 typeset -g RZ_PLUGINS="$RAT_ZSH_HOME/plugins"
 typeset -g RZ_REPOS="$RAT_ZSH_HOME/repos"
 typeset -g RZ_CONFIG="$RAT_ZSH_HOME/config.toml"
+typeset -g RZ_UPDATE_URL="https://raw.githubusercontent.com/gotokazuki/rat-zsh/main/rz"
 
 mkdir -p "$RZ_BIN" "$RZ_PLUGINS" "$RZ_REPOS"
 
@@ -408,10 +409,29 @@ rz_order() {
   done
 }
 
+rz_upgrade() {
+  _rz_log_step start "upgrading rz"
+  local tmp="$RZ_BIN/rz.new"
+  if curl -fsSLo "$tmp" "$RZ_UPDATE_URL"; then
+    chmod +x "$tmp"
+    if ! cmp -s "$tmp" "$RZ_BIN/rz"; then
+      mv "$tmp" "$RZ_BIN/rz"
+    else
+      rm -f "$tmp"
+    fi
+    _rz_log_step ok
+  else
+    rm -f "$tmp" 2>/dev/null || true
+    _rz_log_step error
+    _rz_die "failed to download new rz"
+  fi
+}
+
 # dispatch
 case "${1:-}" in
   init)  rz_init ;;
   sync)  rz_sync ;;
+  upgrade) rz_upgrade ;;
   list)  rz_list ;;
   home)  rz_home ;;
   order) rz_order ;;
@@ -423,6 +443,7 @@ RAT_ZSH_HOME=${RAT_ZSH_HOME}
 Usage:
   rz init     # print init code (add to .zshrc: eval "\$("\$(rz home)/bin/rz" init)")
   rz sync     # fetch/update plugins defined in \$RAT_ZSH_HOME/config.toml
+  rz upgrade  # update rat-zsh itself to the latest release
   rz list     # list parsed plugins
   rz home     # show RAT_ZSH_HOME
   rz order    # show the effective load order
