@@ -23,7 +23,6 @@ source = "github"
 repo   = "zsh-users/zsh-autosuggestions"
 type   = "source"
 file   = "zsh-autosuggestions.zsh"
-name   = "zz-autosuggestions"
 
 [[plugins]]
 source = "github"
