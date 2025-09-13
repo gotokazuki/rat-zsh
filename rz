@@ -213,8 +213,8 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   # Load plugins: standard ones first, then "tail" plugins that must be last.
   # We detect plugins by their repo slug taken from the symlink target under $RZ_REPOS.
   typeset -a _rz_tail_slugs=(
-    zsh-users__zsh-syntax-highlighting
     zsh-users__zsh-autosuggestions
+    zsh-users__zsh-syntax-highlighting
   )
 
   typeset -a _rz_normal _rz_tail
@@ -242,17 +242,34 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
     fi
   done
 
-  # Source normal plugins first, then tail plugins.
-  for p in $_rz_normal $_rz_tail; do
-    # If it’s a symlink to a file, just source it.
+  # Source normal plugins first
+  for p in $_rz_normal; do
     if [[ -L "$p" && -f "$p" ]]; then
       source "$p"
       continue
     fi
-    # Otherwise, source well-known plugin file types.
     case "$p" in
       *.zsh|*.plugin.zsh|*.zsh-theme) source "$p" ;;
     esac
+  done
+
+  # Source tail plugins in defined order
+  typeset s="" q="" slug="" target=""
+  for s in $_rz_tail_slugs; do
+    for q in $_rz_tail; do
+      target="${q:A}"
+      slug=""
+      [[ $target == */repos/* ]] && slug="${${target##*/repos/}%%/*}"
+      if [[ $slug == $s ]]; then
+        if [[ -L "$q" && -f "$q" ]]; then
+          source "$q"
+          continue
+        fi
+        case "$q" in
+          *.zsh|*.plugin.zsh|*.zsh-theme) source "$q" ;;
+        esac
+      fi
+    done
   done
 fi
 EOS
@@ -341,8 +358,8 @@ rz_home() { print -r -- "$RAT_ZSH_HOME"; }
 rz_order() {
   # Slugs that must be sourced last (by repo slug under $RZ_REPOS).
   typeset -a _rz_tail_slugs=(
-    zsh-users__zsh-syntax-highlighting
     zsh-users__zsh-autosuggestions
+    zsh-users__zsh-syntax-highlighting
   )
 
   # Build a set for O(1) tail check.
@@ -367,11 +384,27 @@ rz_order() {
   done
 
   local q disp
-  for q in $normal $tail; do
-    disp="${q:t}"              # link basename (this is "name" or slug)
-    # If it's a slug (owner__repo), display owner/repo for readability.
-    [[ $disp == *"__"* ]] && disp="${disp//__//}"
+  for q in $normal; do
+    target="${q:A}"
+    disp="${q:t}"
+    if [[ $target == */repos/* ]]; then
+      slug="${${target##*/repos/}%%/*}"
+      disp="${slug//__//}"
+    fi
     print -r -- "- $disp"
+  done
+
+  local s
+  for s in $_rz_tail_slugs; do
+    for q in $tail; do
+      target="${q:A}"
+      slug=""
+      [[ $target == */repos/* ]] && slug="${${target##*/repos/}%%/*}"
+      if [[ $slug == $s ]]; then
+        disp="${slug//__//}"
+        print -r -- "- $disp"
+      fi
+    done
   done
 }
 
