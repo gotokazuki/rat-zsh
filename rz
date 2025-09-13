@@ -134,7 +134,7 @@ _rz_sync_one() {
 
   [[ -z "$repo" ]] && return 0
 
-  local slug url repo_dir plug_name
+  local slug url repo_dir plug_name plug_disp
   slug="$(_rz_slug "$repo")"
   url="$(_rz_repo_url "$source" "$repo")"
   repo_dir="$RZ_REPOS/$slug"
@@ -164,7 +164,6 @@ _rz_sync_one() {
   fi
 
   # symlink into plugins
-  local plug_name="${name:-$slug}"
   local link="$RZ_PLUGINS/$plug_name"
   rm -f "$link"
 
@@ -211,12 +210,46 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
     compinit -u
   fi
 
-  # source *.zsh / *.plugin.zsh / *.zsh-theme
-  for p in "$RZ_PLUGINS"/*(-N); do
+  # Load plugins: standard ones first, then "tail" plugins that must be last.
+  # We detect plugins by their repo slug taken from the symlink target under $RZ_REPOS.
+  typeset -a _rz_tail_slugs=(
+    zsh-users__zsh-syntax-highlighting
+    zsh-users__zsh-autosuggestions
+  )
+
+  typeset -a _rz_normal _rz_tail
+  # Include both symlinks (@) and plain files (-); ignore missing matches (N).
+  for p in "$RZ_PLUGINS"/*(N@-); do
+    # Resolve to absolute path and extract repo slug ".../repos/<slug>/..."
+    target="${p:A}"
+    slug=""
+    if [[ $target == */repos/* ]]; then
+      slug="${${target##*/repos/}%%/*}"
+    fi
+
+    # If it’s one of the tail slugs, queue it for the end; otherwise normal.
+    typeset -i is_tail=0
+    for s in $_rz_tail_slugs; do
+      if [[ $slug == $s ]]; then
+        is_tail=1; break
+      fi
+    done
+
+    if (( is_tail )); then
+      _rz_tail+=("$p")
+    else
+      _rz_normal+=("$p")
+    fi
+  done
+
+  # Source normal plugins first, then tail plugins.
+  for p in $_rz_normal $_rz_tail; do
+    # If it’s a symlink to a file, just source it.
     if [[ -L "$p" && -f "$p" ]]; then
       source "$p"
       continue
     fi
+    # Otherwise, source well-known plugin file types.
     case "$p" in
       *.zsh|*.plugin.zsh|*.zsh-theme) source "$p" ;;
     esac
@@ -304,12 +337,51 @@ rz_list() {
 
 rz_home() { print -r -- "$RAT_ZSH_HOME"; }
 
+# Show the order plugins would be sourced in (normal first, then tail plugins).
+rz_order() {
+  # Slugs that must be sourced last (by repo slug under $RZ_REPOS).
+  typeset -a _rz_tail_slugs=(
+    zsh-users__zsh-syntax-highlighting
+    zsh-users__zsh-autosuggestions
+  )
+
+  # Build a set for O(1) tail check.
+  typeset -A _rz_tail_set
+  local t
+  for t in $_rz_tail_slugs; do _rz_tail_set[$t]=1; done
+
+  typeset -a normal tail
+  local p target slug
+  # Include symlinks (@) and plain files (-); ignore misses (N).
+  for p in "$RZ_PLUGINS"/*(N@-); do
+    target="${p:A}"   # resolve to absolute
+    slug=""
+    # Extract repo slug if the target lives under .../repos/<slug>/...
+    [[ $target == */repos/* ]] && slug="${${target##*/repos/}%%/*}"
+
+    if [[ -n ${_rz_tail_set[$slug]-} ]]; then
+      tail+=("$p")
+    else
+      normal+=("$p")
+    fi
+  done
+
+  local q disp
+  for q in $normal $tail; do
+    disp="${q:t}"              # link basename (this is "name" or slug)
+    # If it's a slug (owner__repo), display owner/repo for readability.
+    [[ $disp == *"__"* ]] && disp="${disp//__//}"
+    print -r -- "- $disp"
+  done
+}
+
 # dispatch
-case "$1" in
+case "${1:-}" in
   init)  rz_init ;;
   sync)  rz_sync ;;
   list)  rz_list ;;
   home)  rz_home ;;
+  order) rz_order ;;
   ""|help|-h|--help)
     cat <<EOF
 rat-zsh (rz) - minimal zsh plugin manager
@@ -320,6 +392,7 @@ Usage:
   rz sync     # fetch/update plugins defined in \$RAT_ZSH_HOME/config.toml
   rz list     # list parsed plugins
   rz home     # show RAT_ZSH_HOME
+  rz order    # show the effective load order
 EOF
     ;;
   *)
