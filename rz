@@ -2,7 +2,6 @@
 # rat-zsh (rz) - minimal zsh plugin manager
 # deps: zsh, git
 
-# set -e
 set -euo pipefail
 setopt EXTENDED_GLOB
 autoload -Uz is-at-least
@@ -16,10 +15,43 @@ typeset -g RZ_CONFIG="$RAT_ZSH_HOME/config.toml"
 
 mkdir -p "$RZ_BIN" "$RZ_PLUGINS" "$RZ_REPOS"
 
+# colors
+RZ_COLOR_RESET=$'\033[0m'
+RZ_COLOR_RED=$'\033[31m'
+RZ_COLOR_GREEN=$'\033[32m'
+RZ_COLOR_YELLOW=$'\033[33m'
+RZ_COLOR_BLUE=$'\033[34m'
+
 # utils
 _rz_slug() { print -r -- "${1//\//__}"; }
-_rz_die()  { print -u2 -- "rz: $*"; return 1; }
-_rz_info() { print -r -- "rz: $*"; }
+
+_rz_info() {
+  print -r -- "${RZ_COLOR_GREEN}rz: [info]${RZ_COLOR_RESET} $*"
+}
+
+_rz_warn() {
+  print -u2 -- "${RZ_COLOR_YELLOW}rz: [warn]${RZ_COLOR_RESET} $*"
+}
+
+_rz_die() {
+  print -u2 -- "${RZ_COLOR_RED}rz: [error]${RZ_COLOR_RESET} $*"
+  exit 1
+}
+
+_rz_log_step() {
+  local st="$1" msg="${2:-}"
+  case "$st" in
+    start)
+      printf "${RZ_COLOR_GREEN}rz: [info]${RZ_COLOR_RESET} %s ... " "$msg"
+      ;;
+    ok)
+      printf "${RZ_COLOR_GREEN}[ok]${RZ_COLOR_RESET}\n"
+      ;;
+    error)
+      printf "${RZ_COLOR_RED}[error]${RZ_COLOR_RESET}\n"
+      ;;
+  esac
+}
 
 _rz_repo_url() {
   local source="$1" repo="$2"
@@ -102,17 +134,25 @@ _rz_sync_one() {
 
   [[ -z "$repo" ]] && return 0
 
-  local slug url repo_dir
+  local slug url repo_dir plug_name
   slug="$(_rz_slug "$repo")"
   url="$(_rz_repo_url "$source" "$repo")"
-
   repo_dir="$RZ_REPOS/$slug"
+  plug_name="${name:-$slug}"
+  plug_disp="${name:-$repo}"
+  _rz_log_step start "syncing $plug_disp"
 
   if [[ -d "$repo_dir/.git" ]]; then
-    git -C "$repo_dir" fetch --depth=1 origin >/dev/null 2>&1 || _rz_die "fetch failed: $repo"
+    if ! git -C "$repo_dir" fetch --depth=1 origin >/dev/null 2>&1; then
+      _rz_log_step error
+      return 1
+    fi
     git -C "$repo_dir" submodule update --init --recursive >/dev/null 2>&1
   else
-    git clone --depth=1 --recurse-submodules "$url" "$repo_dir" >/dev/null 2>&1 || _rz_die "clone failed: $repo"
+    if ! git clone --depth=1 --recurse-submodules "$url" "$repo_dir" >/dev/null 2>&1; then
+      _rz_log_step error
+      return 1
+    fi
   fi
 
   if [[ -n "$rev" ]]; then
@@ -145,6 +185,8 @@ _rz_sync_one() {
     [[ -z "$srcfile" ]] && _rz_die "no source file found in $repo_dir"
     ln -s "$srcfile" "$link"
   fi
+
+  _rz_log_step ok
 }
 
 # commands
@@ -191,14 +233,61 @@ rz_sync() {
 
   if [[ -z "$lines" ]]; then
     _rz_info "no plugins in $RZ_CONFIG"
+    for p in "$RZ_PLUGINS"/*(N); do
+      _rz_info "removing stale plugin: ${p:t}"
+      rm -f "$p"
+    done
+    for r in "$RZ_REPOS"/*(N); do
+      _rz_info "removing stale repo: ${r:t}"
+      rm -rf "$r"
+    done
     return 0
   fi
 
   local IFS=$'\x1f'
   local source repo rev file type name
+  typeset -A _expected_name _expected_slug
   while IFS=$'\x1f' read -r source repo rev file type name; do
+    local slug="$(_rz_slug "$repo")"
+    local plug_name="${name:-$slug}"
+    _expected_name[$plug_name]=1
+    _expected_slug[$slug]=1
     _rz_sync_one "$source" "$repo" "$rev" "$file" "$type" "$name"
   done <<< "$lines"
+
+  for p in "$RZ_PLUGINS"/*(N); do
+    local base="${p:t}"
+    if [[ -z "${_expected_name[$base]:-}" ]]; then
+      _rz_log_step start "removing stale plugin: $base"
+      if rm -f "$p"; then
+        _rz_log_step ok
+      else
+        _rz_log_step error
+      fi
+    fi
+  done
+
+  typeset -A _in_use_slug
+
+  for p in "$RZ_PLUGINS"/*(N@); do
+    local target="${p:A}" slug=""
+    if [[ $target == */repos/* ]]; then
+      slug="${${target##*/repos/}%%/*}"
+      (( ${#slug} )) && _in_use_slug[$slug]=1
+    fi
+  done
+
+  for r in "$RZ_REPOS"/*(N/); do
+    local slug="${r:t}"
+    if [[ -z "${_expected_slug[$slug]:-}" && -z "${_in_use_slug[$slug]:-}" ]]; then
+      _rz_log_step start "removing stale repo: $slug"
+      if rm -rf "$r"; then
+        _rz_log_step ok
+      else
+        _rz_log_step error
+      fi
+    fi
+  done
 
   _rz_info "sync done"
 }
