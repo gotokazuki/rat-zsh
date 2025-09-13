@@ -1,5 +1,14 @@
 #!/usr/bin/env zsh
-set -e
+set -euo pipefail
+
+# colors
+RZ_COLOR_RESET=$'\033[0m'
+RZ_COLOR_GREEN=$'\033[32m'
+
+# logging
+_rz_info() {
+  print -r -- "${RZ_COLOR_GREEN}rz: [info]${RZ_COLOR_RESET} $*"
+}
 
 RAT_ZSH_HOME="${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}"
 BIN_DIR="$RAT_ZSH_HOME/bin"
@@ -23,7 +32,6 @@ source = "github"
 repo   = "zsh-users/zsh-autosuggestions"
 type   = "source"
 file   = "zsh-autosuggestions.zsh"
-name   = "zz-autosuggestions"
 
 [[plugins]]
 source = "github"
@@ -48,11 +56,11 @@ repo   = "olets/zsh-abbr"
 type   = "source"
 file   = "zsh-abbr.zsh"
 EOF
-  echo "Wrote sample config: $CONFIG"
+  _rz_info "Wrote sample config: $CONFIG"
 fi
 
 $BIN_DIR/rz sync
 
-echo "rat-zsh installed to: $BIN_DIR/rz"
-echo "Add this line to your .zshrc if not present:"
-echo '  eval "$("$HOME/.rz/bin/rz" init)"'
+_rz_info "rat-zsh installed to: $BIN_DIR/rz"
+_rz_info "Add this line to your .zshrc if not present:"
+_rz_info '  eval "$("$HOME/.rz/bin/rz" init)"'
