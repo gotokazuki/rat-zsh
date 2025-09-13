@@ -51,4 +51,4 @@ $BIN_DIR/rz sync
 
 _rz_info "rat-zsh installed to: $BIN_DIR/rz"
 _rz_info "Add this line to your .zshrc if not present:"
-_rz_info '  eval "$("$HOME/.rz/bin/rz" init)"'
+_rz_info 'eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"'
