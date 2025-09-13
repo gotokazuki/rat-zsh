@@ -32,8 +32,7 @@ A sample file will be created on the first install.
 source = "github"
 repo   = "zsh-users/zsh-autosuggestions"
 type   = "source"
-path   = "zsh-autosuggestions.zsh"
-name   = "zz-autosuggestions"
+file   = "zsh-autosuggestions.zsh"
 
 [[plugins]]
 source = "github"
@@ -44,19 +43,19 @@ type   = "fpath"
 source = "github"
 repo   = "zsh-users/zsh-syntax-highlighting"
 type   = "source"
-path   = "zsh-syntax-highlighting.zsh"
+file   = "zsh-syntax-highlighting.zsh"
 
 [[plugins]]
 source = "github"
 repo   = "zsh-users/zsh-history-substring-search"
 type   = "source"
-path   = "zsh-history-substring-search.zsh"
+file   = "zsh-history-substring-search.zsh"
 
 [[plugins]]
 source = "github"
 repo   = "olets/zsh-abbr"
 type   = "source"
-path   = "zsh-abbr.zsh"
+file   = "zsh-abbr.zsh"
 ```
 
 ### Supported keys
@@ -66,9 +65,52 @@ path   = "zsh-abbr.zsh"
 | source | Plugin source (currently only `github` is supported) |
 | repo   | Repository in `owner/repo` format               |
 | rev    | Optional. Fix to a tag or branch                |
-| path   | Optional. Relative path to the file to `source` |
+| file   | Optional. Relative path to the file to `source` |
 | type   | `"source"` or `"fpath"` (default: `"source"`)   |
 | name   | Optional. Alias name for the plugin             |
+
+### Multiple plugins from a single repository
+
+Some repositories provide multiple plugins (e.g. ohmyzsh/ohmyzsh).
+In such cases you must specify the file and a unique name so they don’t overwrite each other:
+
+```toml
+[[plugins]]
+source = "github"
+repo   = "ohmyzsh/ohmyzsh"
+type   = "source"
+file   = "lib/clipboard.zsh"
+name   = "clipboard"
+
+[[plugins]]
+source = "github"
+repo   = "ohmyzsh/ohmyzsh"
+type   = "source"
+file   = "plugins/copypath/copypath.plugin.zsh"
+name   = "copypath"
+```
+
+Here:
+
+- file selects the plugin file inside the repository.
+- name defines how it will appear in `~/.rz/plugins/` and in the log messages.
+
+## Plugin load order
+
+By default, rat-zsh loads plugins in alphabetical order, except it enforces the following rule:
+
+- all other plugins
+- `zsh-users/zsh-autosuggestions`
+- `zsh-users/zsh-syntax-highlighting`
+
+rat-zsh handles this automatically:
+all other plugins are sourced first, then `zsh-autosuggestions`, and finally `zsh-syntax-highlighting`.
+
+You can check the effective order with:
+
+```zsh
+rz order
+```
 
 ## Setting up `.zshrc`
 
@@ -85,6 +127,7 @@ rz init   # Print initialization code for .zshrc
 rz sync   # Clone/update plugins defined in config.toml
 rz list   # List parsed plugins
 rz home   # Show RAT_ZSH_HOME
+rz order  # Show the effective plugin load order
 ```
 
 ## Update
@@ -93,7 +136,8 @@ rz home   # Show RAT_ZSH_HOME
 rz sync
 ```
 
-This updates both plugins and rat-zsh itself.
+This updates both plugins and rat-zsh itself.  
+Internally, rat-zsh pulls the latest changes from its own GitHub repository along with plugin updates.
 
 ## Uninstall
 
@@ -116,9 +160,9 @@ to disable automatic rebinding and improve performance:
 ```zsh
 # .zshrc
 export ZSH_AUTOSUGGEST_MANUAL_REBIND=1
-eval "$("$(rz home)/bin/rz" init)"
+eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"
 ```
 
 - Effect: Skips redundant processing at every prompt, resulting in a snappier shell.
 - Note: If you add plugins or change key bindings later, you may need to run `zle autosuggest-start` manually.
-- Especially effective when `zsh-autosuggestions` is loaded last.
+- Especially effective when `zsh-autosuggestions` is loaded last (rat-zsh ensures this automatically).
