@@ -7,11 +7,11 @@ setopt EXTENDED_GLOB
 autoload -Uz is-at-least
 
 # path
-typeset -g RAT_ZSH_HOME="${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}"
-typeset -g RZ_BIN="$RAT_ZSH_HOME/bin"
-typeset -g RZ_PLUGINS="$RAT_ZSH_HOME/plugins"
-typeset -g RZ_REPOS="$RAT_ZSH_HOME/repos"
-typeset -g RZ_CONFIG="$RAT_ZSH_HOME/config.toml"
+typeset -g RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
+typeset -g RZ_BIN="$RZ_HOME/bin"
+typeset -g RZ_PLUGINS="$RZ_HOME/plugins"
+typeset -g RZ_REPOS="$RZ_HOME/repos"
+typeset -g RZ_CONFIG="$RZ_HOME/config.toml"
 typeset -g RZ_UPDATE_URL="https://raw.githubusercontent.com/gotokazuki/rat-zsh/main/rz"
 
 mkdir -p "$RZ_BIN" "$RZ_PLUGINS" "$RZ_REPOS"
@@ -195,9 +195,9 @@ rz_init() {
 # rat-zsh init
 if [[ -z "${_RZ_INIT:-}" ]]; then
   typeset -g _RZ_INIT=1
-  typeset -g RAT_ZSH_HOME="${RAT_ZSH_HOME:-$HOME/.rz}"
-  typeset -g RZ_BIN="$RAT_ZSH_HOME/bin"
-  typeset -g RZ_PLUGINS="$RAT_ZSH_HOME/plugins"
+  typeset -g RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
+  typeset -g RZ_BIN="$RZ_HOME/bin"
+  typeset -g RZ_PLUGINS="$RZ_HOME/plugins"
 
   export PATH="$RZ_BIN:$PATH"
 
@@ -353,7 +353,7 @@ rz_list() {
   }'
 }
 
-rz_home() { print -r -- "$RAT_ZSH_HOME"; }
+rz_home() { print -r -- "$RZ_HOME"; }
 
 # Show the order plugins would be sourced in (normal first, then tail plugins).
 rz_order() {
@@ -436,16 +436,16 @@ case "${1:-}" in
   home)  rz_home ;;
   order) rz_order ;;
   ""|help|-h|--help)
-    cat <<EOF
+    cat <<'EOF'
 rat-zsh (rz) - minimal zsh plugin manager
-RAT_ZSH_HOME=${RAT_ZSH_HOME}
+RZ_HOME=${RZ_HOME}
 
 Usage:
   rz init     # print init code (add to .zshrc: eval "\$("\$(rz home)/bin/rz" init)")
-  rz sync     # fetch/update plugins defined in \$RAT_ZSH_HOME/config.toml
+  rz sync     # fetch/update plugins defined in \$RZ_HOME/config.toml
   rz upgrade  # update rat-zsh itself to the latest release
   rz list     # list parsed plugins
-  rz home     # show RAT_ZSH_HOME
+  rz home     # show rz home directory
   rz order    # show the effective load order
 EOF
     ;;
