@@ -20,7 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/gotokazuki/rat-zsh/main/install.zsh
 ```
 
 This installs `$(rz home)/bin/rz`.  
-(Default install location is `$RAT_ZSH_HOME`. If not set, it falls back to `$ZDOTDIR/.rz`, and if not set, to `$HOME/.rz`.)
+(Default install location is `$XDG_CONFIG_HOME/.rz`. If not set, it falls back to `$HOME/.rz`.)
 
 ## Configuration
 
@@ -105,7 +105,7 @@ rz order
 Add the following line to your `~/.zshrc`:
 
 ```zsh
-eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"
+eval "$("${XDG_CONFIG_HOME:-$HOME}"/.rz/bin/rz init)"
 ```
 
 ## Commands
@@ -115,7 +115,7 @@ rz init     # Print initialization code for .zshrc
 rz sync     # Clone/update plugins defined in config.toml
 rz upgrade  # Update rat-zsh itself to the latest release
 rz list     # List parsed plugins
-rz home     # Show RAT_ZSH_HOME
+rz home     # Show rz home directory
 rz order    # Show the effective plugin load order
 ```
 
@@ -139,7 +139,7 @@ rz sync
 rm -rf "$(rz home)"
 ```
 
-Then remove the line `eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"` from `.zshrc`.
+Then remove the line `eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"` from `.zshrc`.
 
 ## Recommended setting
 
@@ -154,7 +154,7 @@ to disable automatic rebinding and improve performance:
 ```zsh
 # .zshrc
 export ZSH_AUTOSUGGEST_MANUAL_REBIND=1
-eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"
+eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"
 ```
 
 - Effect: Skips redundant processing at every prompt, resulting in a snappier shell.

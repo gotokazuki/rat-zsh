@@ -10,11 +10,12 @@ _rz_info() {
   print -r -- "${RZ_COLOR_GREEN}rz: [info]${RZ_COLOR_RESET} $*"
 }
 
-RAT_ZSH_HOME="${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}"
-BIN_DIR="$RAT_ZSH_HOME/bin"
-PLUGINS_DIR="$RAT_ZSH_HOME/plugins"
-REPOS_DIR="$RAT_ZSH_HOME/repos"
-CONFIG="$RAT_ZSH_HOME/config.toml"
+RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
+
+BIN_DIR="$RZ_HOME/bin"
+PLUGINS_DIR="$RZ_HOME/plugins"
+REPOS_DIR="$RZ_HOME/repos"
+CONFIG="$RZ_HOME/config.toml"
 
 mkdir -p "$BIN_DIR" "$PLUGINS_DIR" "$REPOS_DIR"
 
@@ -51,4 +52,4 @@ $BIN_DIR/rz sync
 
 _rz_info "rat-zsh installed to: $BIN_DIR/rz"
 _rz_info "Add this line to your .zshrc if not present:"
-_rz_info 'eval "$("${RAT_ZSH_HOME:-${ZDOTDIR:-$HOME}/.rz}/bin/rz" init)"'
+_rz_info 'eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"'
