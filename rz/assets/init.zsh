@@ -1,7 +1,7 @@
 # rat-zsh init
-if [[ -z "${{_RZ_INIT:-}}" ]]; then
+if [[ -z "${_RZ_INIT:-}" ]]; then
   typeset -g _RZ_INIT=1
-  typeset -g RZ_HOME="${{XDG_CONFIG_HOME:-$HOME}}/.rz"
+  typeset -g RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
   typeset -g RZ_BIN="$RZ_HOME/bin"
   typeset -g RZ_PLUGINS="$RZ_HOME/plugins"
 
@@ -9,7 +9,7 @@ if [[ -z "${{_RZ_INIT:-}}" ]]; then
   fpath=("$RZ_PLUGINS" $fpath)
 
   autoload -Uz compinit
-  if [[ -z "${{_RZ_COMPINIT_DONE:-}}" ]]; then
+  if [[ -z "${_RZ_COMPINIT_DONE:-}" ]]; then
     typeset -g _RZ_COMPINIT_DONE=1
     compinit -u
   fi
@@ -21,10 +21,10 @@ if [[ -z "${{_RZ_INIT:-}}" ]]; then
 
   typeset -a _rz_normal _rz_tail
   for p in "$RZ_PLUGINS"/*(N@-); do
-    target="${{p:A}}"
+    target="${p:A}"
     slug=""
     if [[ $target == */repos/* ]]; then
-      slug="${{${{target##*/repos/}}%%/*}}"
+      slug="${${target##*/repos/}%%/*}"
     fi
     typeset -i is_tail=0
     for s in $_rz_tail_slugs; do
@@ -43,9 +43,9 @@ if [[ -z "${{_RZ_INIT:-}}" ]]; then
   typeset s="" q="" slug="" target=""
   for s in $_rz_tail_slugs; do
     for q in $_rz_tail; do
-      target="${{q:A}}"
+      target="${q:A}"
       slug=""
-      [[ $target == */repos/* ]] && slug="${{${{target##*/repos/}}%%/*}}"
+      [[ $target == */repos/* ]] && slug="${${target##*/repos/}%%/*}"
       if [[ $slug == $s ]]; then
         if [[ -L "$q" && -f "$q" ]]; then source "$q"; continue; fi
         case "$q" in
