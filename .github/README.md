@@ -6,12 +6,14 @@ Rat Zsh
 </h1>
 
 **Rat Zsh** is a minimal and lightweight **plugin manager for zsh**.  
-It is entirely implemented in zsh and only depends on git.
+built in Rust for speed and simplicity.
 
 - 🚀 Installation with a single `curl` line
 - ⚙️ Configuration file in TOML (`$(rz home)/config.toml`)
 - 🧩 Plugins are fetched from GitHub repositories
 - 📦 Just add one `eval` line in `.zshrc` to start using it
+- ⚡️ Parallel plugin sync
+- 🔄 Self-upgrade via `rz upgrade`
 
 ## Installation
 
@@ -78,10 +80,35 @@ file   = "plugins/copypath/copypath.plugin.zsh"
 name   = "copypath"
 ```
 
-Here:
+In this example:
 
-- file selects the plugin file inside the repository.
-- name defines how it will appear in `~/.rz/plugins/` and in the log messages.
+- `file` selects the plugin file inside the repository.
+- `name` defines how it will appear in `$(rz home)/plugins/` and in the log messages.
+
+### Pinning to a specific tag or branch
+
+You can use rev to pin a plugin to a specific version (tag or branch).  
+This ensures reproducible environments and avoids unexpected updates.
+
+```toml
+# Pin to a tag
+[[plugins]]
+source = "github"
+repo   = "zsh-users/zsh-autosuggestions"
+rev    = "v0.7.0"
+type   = "source"
+file   = "zsh-autosuggestions.zsh"
+
+# Pin to a branch
+[[plugins]]
+source = "github"
+repo   = "zsh-users/zsh-completions"
+rev    = "develop"
+type   = "fpath"
+```
+
+- If rev is not specified, the plugin is synced to the default branch (usually main or master).
+- When rev is specified, Rat Zsh checks out that branch or tag after cloning or fetching.
 
 ## Plugin load order
 
@@ -102,7 +129,7 @@ rz order
 
 ## Setting up `.zshrc`
 
-Add the following line to your `~/.zshrc`:
+Add the following line to your `.zshrc`:
 
 ```zsh
 eval "$("${XDG_CONFIG_HOME:-$HOME}"/.rz/bin/rz init)"
@@ -160,3 +187,7 @@ eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"
 - Effect: Skips redundant processing at every prompt, resulting in a snappier shell.
 - Note: If you add plugins or change key bindings later, you may need to run `zle autosuggest-start` manually.
 - Especially effective when `zsh-autosuggestions` is loaded last (rat-zsh ensures this automatically).
+
+## License
+
+MIT License. See [LICENSE](../LICENSE) for details.
