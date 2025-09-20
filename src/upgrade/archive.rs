@@ -32,18 +32,15 @@ pub fn extract_if_archive(temp_path: &Path) -> Result<PathBuf> {
     let gz = GzDecoder::new(f);
     let mut ar = tar::Archive::new(gz);
 
-    let want = "rz";
-    let out = tempfile::tempdir()?.path().join(want);
-
     for entry in ar.entries()? {
         let mut e = entry?;
         let path = e.path()?;
         if let Some(name) = path.file_name().and_then(|s| s.to_str())
-            && name == want
+            && name == "rz"
         {
-            let mut of = fs::File::create(&out)?;
-            std::io::copy(&mut e, &mut of)?;
-            return Ok(out);
+            let mut tmp = tempfile::Builder::new().prefix("rz-").tempfile()?;
+            std::io::copy(&mut e, tmp.as_file_mut())?;
+            return Ok(tmp.into_temp_path().to_path_buf());
         }
     }
 
