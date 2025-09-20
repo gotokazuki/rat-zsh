@@ -49,7 +49,7 @@ pub fn cmd_upgrade() -> Result<()> {
     let downloaded = download_to_temp(&client, &asset.browser_download_url)
         .with_context(|| format!("failed to download: {}", asset.browser_download_url))?;
 
-    let bin_path = extract_if_archive(downloaded.path(), &p.bin)?;
+    let bin_path = extract_if_archive(downloaded.path())?;
     atomic_replace(&bin_path, &target_bin)?;
     eprintln!("upgraded to {}", rel.tag_name);
 
