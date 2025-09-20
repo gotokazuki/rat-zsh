@@ -4,7 +4,6 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use tempfile::tempdir;
 
 pub fn sha256_file(path: &Path) -> Result<String> {
     let mut f = fs::File::open(path)?;
@@ -20,7 +19,6 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-#[cfg(unix)]
 pub fn make_executable(p: &Path) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     let mut perm = fs::metadata(p)?.permissions();
@@ -28,42 +26,26 @@ pub fn make_executable(p: &Path) -> Result<()> {
     fs::set_permissions(p, perm)?;
     Ok(())
 }
-#[cfg(not(unix))]
-pub fn make_executable(_p: &Path) -> Result<()> {
-    Ok(())
-}
 
 pub fn extract_if_archive(temp_path: &Path) -> Result<PathBuf> {
-    let fname = temp_path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+    let f = fs::File::open(temp_path)?;
+    let gz = GzDecoder::new(f);
+    let mut ar = tar::Archive::new(gz);
 
-    if fname.ends_with(".tar.gz") || fname.ends_with(".tgz") {
-        let dir = tempdir()?;
-        let f = fs::File::open(temp_path)?;
-        let gz = GzDecoder::new(f);
-        let mut ar = tar::Archive::new(gz);
+    let want = "rz";
+    let out = tempfile::tempdir()?.path().join(want);
 
-        let want = if cfg!(windows) { "rz.exe" } else { "rz" };
-        let out = dir.path().join(want);
-
-        let mut found = false;
-        for entry in ar.entries()? {
-            let mut e = entry?;
-            let path = e.path()?;
-            if let Some(name) = path.file_name().and_then(|s| s.to_str())
-                && (name == want || name == "rz")
-            {
-                let mut of = fs::File::create(&out)?;
-                std::io::copy(&mut e, &mut of)?;
-                found = true;
-                break;
-            }
+    for entry in ar.entries()? {
+        let mut e = entry?;
+        let path = e.path()?;
+        if let Some(name) = path.file_name().and_then(|s| s.to_str())
+            && name == want
+        {
+            let mut of = fs::File::create(&out)?;
+            std::io::copy(&mut e, &mut of)?;
+            return Ok(out);
         }
-
-        if !found {
-            return Err(anyhow!("archive does not contain rz binary"));
-        }
-        Ok(out)
-    } else {
-        Ok(temp_path.to_path_buf())
     }
+
+    Err(anyhow!("archive does not contain rz binary"))
 }
