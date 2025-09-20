@@ -44,13 +44,10 @@ pub fn cmd_upgrade() -> Result<()> {
     let downloaded = download_to_temp(&client, &asset.browser_download_url)
         .with_context(|| format!("failed to download: {}", asset.browser_download_url))?;
 
-    let bin_path = extract_if_archive(downloaded.path())?;
-    atomic_replace(&bin_path, &target_bin)?;
+    let extracted = extract_if_archive(downloaded.path())?;
+    atomic_replace(extracted.path(), &target_bin)?;
     eprintln!("upgraded to {}", rel.tag_name);
 
-    if bin_path != downloaded.path() {
-        let _ = fs::remove_file(&bin_path);
-    }
     Ok(())
 }
 

@@ -3,7 +3,8 @@ use flate2::read::GzDecoder;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use tempfile::NamedTempFile;
 
 pub fn sha256_file(path: &Path) -> Result<String> {
     let mut f = fs::File::open(path)?;
@@ -27,7 +28,7 @@ pub fn make_executable(p: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn extract_if_archive(temp_path: &Path) -> Result<PathBuf> {
+pub fn extract_if_archive(temp_path: &Path) -> Result<NamedTempFile> {
     let f = fs::File::open(temp_path)?;
     let gz = GzDecoder::new(f);
     let mut ar = tar::Archive::new(gz);
@@ -40,7 +41,7 @@ pub fn extract_if_archive(temp_path: &Path) -> Result<PathBuf> {
         {
             let mut tmp = tempfile::Builder::new().prefix("rz-").tempfile()?;
             std::io::copy(&mut e, tmp.as_file_mut())?;
-            return Ok(tmp.into_temp_path().to_path_buf());
+            return Ok(tmp);
         }
     }
 
