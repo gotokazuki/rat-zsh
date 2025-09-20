@@ -25,6 +25,14 @@ pub fn cmd_upgrade() -> Result<()> {
 
     let client = gh_client()?;
     let rel = fetch_latest_release(&client)?;
+
+    let latest_version = rel.tag_name.trim_start_matches('v');
+    let current_version = env!("CARGO_PKG_VERSION");
+    if latest_version == current_version {
+        eprintln!("already up to date ({})", rel.tag_name);
+        return Ok(());
+    }
+
     let tag = rel.tag_name.as_str();
 
     let cands = candidate_asset_names(tag)?;
