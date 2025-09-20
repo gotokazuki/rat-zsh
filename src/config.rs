@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs;
 
-use crate::paths::paths;
+use crate::paths::{Paths, paths};
 
 /// Top-level configuration structure loaded from `config.toml`.
 ///
@@ -43,6 +43,27 @@ pub struct Plugin {
     pub name: Option<String>,
 }
 
+/// Load and parse a configuration file from the given path.
+///
+/// This is a lower-level helper used by [`load_config`], which always
+/// resolves to the default path (`~/.config/.rz/config.toml`).
+///
+/// # Arguments
+/// - `path`: Path to a TOML file containing plugin configuration.
+///
+/// # Returns
+/// A [`Config`] struct with parsed plugin definitions.
+///
+/// # Errors
+/// - Returns an error if the file does not exist or cannot be read.
+/// - Returns an error if the TOML content is invalid.
+pub fn load_config_from(path: &std::path::Path) -> Result<Config> {
+    let txt = fs::read_to_string(path)
+        .with_context(|| format!("config not found: {}", path.display()))?;
+    let cfg: Config = toml::from_str(&txt).context("failed to parse config.toml")?;
+    Ok(cfg)
+}
+
 /// Load and parse `config.toml` into a [`Config`] structure.
 ///
 /// # Errors
@@ -53,34 +74,44 @@ pub struct Plugin {
 /// - This always resolves the path using [`paths()`].
 /// - If the file is missing, the error message includes the resolved path.
 pub fn load_config() -> Result<Config> {
-    let p = paths()?;
-    let txt = fs::read_to_string(&p.config)
-        .with_context(|| format!("config not found: {}", p.config.display()))?;
-    let cfg: Config = toml::from_str(&txt).context("failed to parse config.toml")?;
-    Ok(cfg)
+    let p: Paths = paths()?;
+    load_config_from(&p.config)
 }
 
-/// CLI command: print a human-readable list of plugins.
-///
-/// Each plugin is displayed with:
-/// - name or repo (for identification)
-/// - source (e.g., `github`)
-/// - type (`source`, `fpath`, etc.)
-///
-/// Example output:
-/// ```text
-/// - zsh-autosuggestions (github) [source]
-/// - zsh-completions (github) [fpath]
-/// ```
-///
-/// # Errors
-/// - Returns an error if `config.toml` cannot be loaded or parsed.
-pub fn cmd_list() -> Result<()> {
-    let cfg = load_config()?;
-    for pl in cfg.plugins {
-        let t = pl.r#type.as_deref().unwrap_or("source");
-        let display = pl.name.as_deref().unwrap_or(&pl.repo);
-        println!("- {} ({}) [{}]", display, pl.source, t);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    #[test]
+    fn load_config_from_reads_valid_toml() {
+        let tmp = tempdir().unwrap();
+        let cfg_path = tmp.path().join("config.toml");
+        let toml = r#"
+            [[plugins]]
+            source = "github"
+            repo   = "zsh-users/zsh-autosuggestions"
+            type   = "source"
+            file   = "zsh-autosuggestions.zsh"
+        "#;
+        std::fs::File::create(&cfg_path)
+            .unwrap()
+            .write_all(toml.as_bytes())
+            .unwrap();
+
+        let cfg = load_config_from(&cfg_path).unwrap();
+        assert_eq!(cfg.plugins.len(), 1);
+        assert_eq!(cfg.plugins[0].repo, "zsh-users/zsh-autosuggestions");
     }
-    Ok(())
+
+    #[test]
+    fn load_config_from_errors_when_missing() {
+        let tmp = tempdir().unwrap();
+        let cfg_path = tmp.path().join("nope.toml");
+        let err = load_config_from(&cfg_path).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("config not found"));
+        assert!(msg.contains("nope.toml"));
+    }
 }

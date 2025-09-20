@@ -138,3 +138,91 @@ fn extract_slug(target: &Path) -> Option<String> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indicatif::MultiProgress;
+    use std::collections::HashSet;
+    use std::fs;
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    #[cfg(unix)]
+    fn symlink_file(src: &Path, dst: &Path) {
+        use std::os::unix::fs::symlink;
+        symlink(src, dst).expect("symlink");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_stale_plugins_removes_unexpected_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let plugins_dir = tmp.path().join("plugins");
+        fs::create_dir(&plugins_dir).unwrap();
+
+        let keep = plugins_dir.join("keep.plugin.zsh");
+        fs::File::create(&keep).unwrap().write_all(b"ok").unwrap();
+
+        let drop_ = plugins_dir.join("drop.plugin.zsh");
+        fs::File::create(&drop_).unwrap().write_all(b"ng").unwrap();
+
+        let mut expect = HashSet::new();
+        expect.insert("keep.plugin.zsh".to_string());
+
+        let mp = MultiProgress::new();
+        cleanup_stale_plugins(&mp, &plugins_dir, &expect).unwrap();
+
+        assert!(keep.exists());
+        assert!(!drop_.exists(), "stale plugin should be removed");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_stale_repos_removes_unused_and_unexpected_repos() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repos_dir = tmp.path().join("repos");
+        let plugins_dir = tmp.path().join("plugins");
+        fs::create_dir(&repos_dir).unwrap();
+        fs::create_dir(&plugins_dir).unwrap();
+
+        let usedslug = repos_dir.join("usedslug");
+        fs::create_dir(&usedslug).unwrap();
+        let used_target = usedslug.join("some.zsh");
+        fs::File::create(&used_target)
+            .unwrap()
+            .write_all(b"echo ok")
+            .unwrap();
+
+        let link = plugins_dir.join("some-plugin");
+        symlink_file(&used_target, &link);
+
+        let staleslug = repos_dir.join("staleslug");
+        fs::create_dir(&staleslug).unwrap();
+        fs::File::create(staleslug.join("x")).unwrap();
+
+        let expect_slugs: HashSet<String> = HashSet::new();
+
+        let mp = MultiProgress::new();
+        cleanup_stale_repos(&mp, &repos_dir, &expect_slugs, &plugins_dir).unwrap();
+
+        assert!(usedslug.exists(), "in-use repo must be preserved");
+        assert!(
+            !staleslug.exists(),
+            "unused & unexpected repo must be removed"
+        );
+    }
+
+    #[test]
+    fn extract_slug_returns_slug_after_repos_component() {
+        let p = PathBuf::from("/home/user/.rz/repos/zsh-users__zsh-autosuggestions/file.zsh");
+        let got = super::extract_slug(&p);
+        assert_eq!(got.as_deref(), Some("zsh-users__zsh-autosuggestions"));
+    }
+
+    #[test]
+    fn extract_slug_returns_none_when_no_repos_component() {
+        let p = PathBuf::from("/home/user/.rz/plugins/foo.plugin.zsh");
+        assert!(super::extract_slug(&p).is_none());
+    }
+}

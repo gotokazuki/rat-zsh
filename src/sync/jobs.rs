@@ -70,3 +70,140 @@ pub fn build_jobs(cfg: &Config, p: &Paths) -> (Vec<SyncJob>, HashSet<String>, Ha
 
     (jobs, expect_plugin_names, expect_repo_slugs)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Plugin;
+    use std::collections::HashSet;
+    use tempfile::tempdir;
+
+    fn make_paths(tmp: &std::path::Path) -> Paths {
+        Paths {
+            bin: tmp.join("bin"),
+            plugins: tmp.join("plugins"),
+            repos: tmp.join("repos"),
+            config: tmp.join("config.toml"),
+        }
+    }
+
+    #[test]
+    fn build_jobs_basic_and_github_url_and_flags() {
+        let tmp = tempdir().unwrap();
+        let p = make_paths(tmp.path());
+
+        let cfg = Config {
+            plugins: vec![
+                Plugin {
+                    source: "".into(),
+                    repo: "zsh-users/zsh-autosuggestions".into(),
+                    rev: None,
+                    file: Some("zsh-autosuggestions.zsh".into()),
+                    r#type: None,
+                    name: None,
+                },
+                Plugin {
+                    source: "github".into(),
+                    repo: "zsh-users/zsh-completions".into(),
+                    rev: None,
+                    file: None,
+                    r#type: Some("fpath".into()),
+                    name: Some("comps".into()),
+                },
+                Plugin {
+                    source: "github".into(),
+                    repo: "olets/zsh-abbr".into(),
+                    rev: Some("v1.2.3".into()),
+                    file: Some("zsh-abbr.zsh".into()),
+                    r#type: None,
+                    name: None,
+                },
+            ],
+        };
+
+        let (jobs, expect_names, expect_slugs) = build_jobs(&cfg, &p);
+
+        assert_eq!(jobs.len(), 3);
+
+        let j0 = &jobs[0];
+        assert_eq!(j0.display, "zsh-users/zsh-autosuggestions");
+        assert_eq!(
+            j0.url,
+            "https://github.com/zsh-users/zsh-autosuggestions.git"
+        );
+        assert_eq!(j0.repo_dir, p.repos.join("zsh-users__zsh-autosuggestions"));
+        assert_eq!(
+            j0.link_path,
+            p.plugins.join("zsh-users__zsh-autosuggestions")
+        );
+        assert!(!j0.kind_fpath);
+        assert_eq!(j0.file_hint.as_deref(), Some("zsh-autosuggestions.zsh"));
+        assert!(j0.rev.is_none());
+
+        let j1 = &jobs[1];
+        assert_eq!(j1.display, "comps");
+        assert_eq!(j1.url, "https://github.com/zsh-users/zsh-completions.git");
+        assert!(j1.kind_fpath);
+        assert_eq!(j1.file_hint, None);
+        assert_eq!(j1.link_path, p.plugins.join("comps"));
+
+        let j2 = &jobs[2];
+        assert_eq!(j2.display, "olets/zsh-abbr");
+        assert_eq!(j2.rev.as_deref(), Some("v1.2.3"));
+        assert_eq!(j2.file_hint.as_deref(), Some("zsh-abbr.zsh"));
+
+        let want_names: HashSet<_> = ["zsh-users__zsh-autosuggestions", "comps", "olets__zsh-abbr"]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let want_slugs: HashSet<_> = [
+            "zsh-users__zsh-autosuggestions",
+            "zsh-users__zsh-completions",
+            "olets__zsh-abbr",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+        assert_eq!(expect_names, want_names);
+        assert_eq!(expect_slugs, want_slugs);
+    }
+
+    #[test]
+    fn build_jobs_skips_empty_repo_entries() {
+        let tmp = tempdir().unwrap();
+        let p = make_paths(tmp.path());
+
+        let cfg = Config {
+            plugins: vec![
+                Plugin {
+                    source: "github".into(),
+                    repo: "".into(),
+                    rev: None,
+                    file: None,
+                    r#type: None,
+                    name: None,
+                },
+                Plugin {
+                    source: "github".into(),
+                    repo: "owner/repo".into(),
+                    rev: None,
+                    file: None,
+                    r#type: None,
+                    name: None,
+                },
+            ],
+        };
+
+        let (jobs, expect_names, expect_slugs) = build_jobs(&cfg, &p);
+
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(expect_names.len(), 1);
+        assert_eq!(expect_slugs.len(), 1);
+
+        assert_eq!(jobs[0].display, "owner/repo");
+        assert_eq!(jobs[0].url, "https://github.com/owner/repo.git");
+        assert_eq!(jobs[0].repo_dir, p.repos.join("owner__repo"));
+        assert_eq!(jobs[0].link_path, p.plugins.join("owner__repo"));
+    }
+}

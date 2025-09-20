@@ -65,3 +65,82 @@ pub fn extract_if_archive(temp_path: &Path) -> Result<NamedTempFile> {
 
     Err(anyhow!("archive does not contain rz binary"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    fn make_targz_with_single_file(name: &str, contents: &[u8]) -> NamedTempFile {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use tar::Builder;
+
+        let tmp = tempfile::NamedTempFile::new().expect("targz temp");
+        let gz = GzEncoder::new(
+            std::fs::File::create(tmp.path()).expect("open gz out"),
+            Compression::default(),
+        );
+        let mut tar = Builder::new(gz);
+
+        let mut payload = tempfile::NamedTempFile::new().expect("payload temp");
+        payload.write_all(contents).expect("write payload");
+
+        tar.append_path_with_name(payload.path(), name)
+            .expect("append to tar");
+        tar.into_inner()
+            .expect("finish tar")
+            .finish()
+            .expect("finish gz");
+
+        tmp
+    }
+
+    #[test]
+    fn sha256_file_returns_expected_digest() {
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(b"hello\n").unwrap();
+
+        let got = sha256_file(f.path()).unwrap();
+        let want = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03";
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn make_executable_sets_exec_bits_on_unix() {
+        let f = tempfile::NamedTempFile::new().unwrap();
+        make_executable(f.path()).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(f.path()).unwrap().permissions().mode();
+            assert_ne!(mode & 0o111, 0, "executable bits should be set");
+        }
+    }
+
+    #[test]
+    fn extract_if_archive_finds_rz_and_returns_tempfile() {
+        let tgz = make_targz_with_single_file("rz", b"dummy-binary");
+        let extracted = extract_if_archive(tgz.path()).expect("extract ok");
+
+        let mut buf = Vec::new();
+        std::fs::File::open(extracted.path())
+            .unwrap()
+            .read_to_end(&mut buf)
+            .unwrap();
+        assert_eq!(buf, b"dummy-binary");
+    }
+
+    #[test]
+    fn extract_if_archive_errors_when_rz_not_present() {
+        let tgz = make_targz_with_single_file("foo", b"not rz");
+        let err = extract_if_archive(tgz.path()).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("archive does not contain rz binary"),
+            "unexpected error: {msg}"
+        );
+    }
+}
