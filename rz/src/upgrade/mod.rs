@@ -25,9 +25,9 @@ pub fn cmd_upgrade() -> Result<()> {
 
     let client = gh_client()?;
     let rel = fetch_latest_release(&client)?;
-    let tag = rel.tag_name.trim_start_matches('v');
+    let tag = rel.tag_name.as_str();
 
-    let cands = candidate_asset_names(tag);
+    let cands = candidate_asset_names(tag)?;
     let chosen = cands
         .iter()
         .find_map(|want| rel.assets.iter().find(|a| a.name == *want));
