@@ -1,8 +1,10 @@
 use anyhow::{Result, bail};
 use reqwest::blocking::Client;
+use reqwest::blocking::Response;
 use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use std::env;
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Deserialize)]
 pub struct Release {
@@ -59,9 +61,6 @@ fn detect_target() -> Result<(&'static str, &'static str)> {
     };
     Ok((os, arch))
 }
-
-use reqwest::blocking::Response;
-use tempfile::NamedTempFile;
 
 pub fn download_to_temp(client: &Client, url: &str) -> Result<NamedTempFile> {
     let mut resp: Response = client.get(url).send()?.error_for_status()?;
