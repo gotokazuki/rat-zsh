@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use reqwest::blocking::Client;
 use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
@@ -41,23 +41,23 @@ pub fn fetch_latest_release(client: &Client) -> Result<Release> {
     Ok(rel)
 }
 
-pub fn candidate_asset_names(tag: &str) -> Vec<String> {
-    let (os, arch) = detect_target();
-    vec![format!("rz-{}-{}-{}.tar.gz", tag, os, arch)]
+pub fn candidate_asset_names(tag: &str) -> Result<Vec<String>> {
+    let (os, arch) = detect_target()?;
+    Ok(vec![format!("rz-{}-{}-{}.tar.gz", tag, os, arch)])
 }
 
-fn detect_target() -> (&'static str, &'static str) {
+fn detect_target() -> Result<(&'static str, &'static str)> {
     let os = match std::env::consts::OS {
         "linux" => "linux",
         "macos" => "macos",
-        _ => "linux",
+        other => bail!("unsupported OS: {}", other),
     };
     let arch = match std::env::consts::ARCH {
         "x86_64" => "x86_64",
         "aarch64" | "arm64" => "aarch64",
-        _ => "x86_64",
+        other => bail!("unsupported ARCH: {}", other),
     };
-    (os, arch)
+    Ok((os, arch))
 }
 
 use reqwest::blocking::Response;
