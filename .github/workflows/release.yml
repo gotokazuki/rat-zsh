@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }} on ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            os: linux
+            arch: x86_64
+            use-cross: false
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            os: linux
+            arch: aarch64
+            use-cross: true
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            os: macos
+            arch: aarch64
+            use-cross: false
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            os: windows
+            arch: x86_64
+            use-cross: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        if: matrix.use-cross == 'false'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (for cross-compiling)
+        if: matrix.use-cross == 'true'
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+          rustup target add ${{ matrix.target }}
+
+      - name: Build (release)
+        shell: bash
+        run: |
+          set -eux
+          if [[ "${{ matrix.use-cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Package (tar.gz/zip)
+        shell: bash
+        run: |
+          set -eux
+          TAG="${GITHUB_REF_NAME#v}"  # "v1.2.3" -> "1.2.3"
+          BIN_DIR="target/${{ matrix.target }}/release"
+          DIST="dist"
+          mkdir -p "$DIST"
+
+          EXE="rz"
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            EXE="rz.exe"
+          fi
+
+          BASENAME="rz-v${TAG}-${{ matrix.os }}-${{ matrix.arch }}"
+
+          PKGDIR="${DIST}/${BASENAME}"
+          mkdir -p "$PKGDIR"
+
+          cp "${BIN_DIR}/${EXE}" "${PKGDIR}/"
+          chmod +x "${PKGDIR}/${EXE}" || true
+          [[ -f LICENSE ]] && cp LICENSE "${PKGDIR}/"
+          [[ -f README.md ]] && cp README.md "${PKGDIR}/"
+
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            # Windows は zip にするのも定番だが、要件が tar.gz なら msys-tar がなくて失敗するので zip にします
+            # （rz 側の candidate_asset_names に .zip も含めておくと自動で見つかる）
+            (cd "$DIST" && zip -r "${BASENAME}.zip" "${BASENAME}")
+            echo "ASSET=${DIST}/${BASENAME}.zip" >> $GITHUB_ENV
+          else
+            (cd "$DIST" && tar czf "${BASENAME}.tar.gz" "${BASENAME}")
+            echo "ASSET=${DIST}/${BASENAME}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -eux
+          shopt -s nullglob
+          cd dist
+          for f in *.{tar.gz,zip}; do
+            if command -v shasum >/dev/null 2>&1; then
+              shasum -a 256 "$f" >> SHA256SUMS.txt
+            else
+              sha256sum "$f" >> SHA256SUMS.txt
+            fi
+          done
+
+      - name: Upload release asset(s)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
