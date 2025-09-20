@@ -2,6 +2,9 @@ name: Lint
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   zsh-syntax-check:
@@ -15,5 +18,19 @@ jobs:
           sudo apt-get install -y zsh
       - name: Syntax check (install.zsh)
         run: zsh -n install.zsh
-      - name: Syntax check (rz)
-        run: zsh -n rz
+  rust-lint:
+    name: rust clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Run cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: ./rz
+      - name: Run cargo fmt check
+        run: cargo fmt --all -- --check
+        working-directory: ./rz
