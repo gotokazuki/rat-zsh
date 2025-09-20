@@ -4,12 +4,29 @@ use std::fs;
 
 use crate::paths::paths;
 
+/// Top-level configuration structure loaded from `config.toml`.
+///
+/// The file defines how plugins are managed by rat-zsh.
+/// Currently, only the `plugins` section is supported.
+///
+/// Example TOML:
+/// ```toml
+/// [[plugins]]
+/// source = "github"
+/// repo   = "zsh-users/zsh-autosuggestions"
+/// type   = "source"
+/// file   = "zsh-autosuggestions.zsh"
+/// ```
 #[derive(Debug, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub plugins: Vec<Plugin>,
 }
 
+/// Representation of a single plugin entry in `config.toml`.
+///
+/// Each field corresponds to keys typically found under `[[plugins]]`.
+/// All fields are optional (default empty or `None`) to allow flexible configs.
 #[derive(Debug, Deserialize, Clone)]
 pub struct Plugin {
     #[serde(default)]
@@ -26,6 +43,15 @@ pub struct Plugin {
     pub name: Option<String>,
 }
 
+/// Load and parse `config.toml` into a [`Config`] structure.
+///
+/// # Errors
+/// - Returns an error if `config.toml` cannot be read.
+/// - Returns an error if parsing the TOML fails.
+///
+/// # Notes
+/// - This always resolves the path using [`paths()`].
+/// - If the file is missing, the error message includes the resolved path.
 pub fn load_config() -> Result<Config> {
     let p = paths()?;
     let txt = fs::read_to_string(&p.config)
@@ -34,6 +60,21 @@ pub fn load_config() -> Result<Config> {
     Ok(cfg)
 }
 
+/// CLI command: print a human-readable list of plugins.
+///
+/// Each plugin is displayed with:
+/// - name or repo (for identification)
+/// - source (e.g., `github`)
+/// - type (`source`, `fpath`, etc.)
+///
+/// Example output:
+/// ```text
+/// - zsh-autosuggestions (github) [source]
+/// - zsh-completions (github) [fpath]
+/// ```
+///
+/// # Errors
+/// - Returns an error if `config.toml` cannot be loaded or parsed.
 pub fn cmd_list() -> Result<()> {
     let cfg = load_config()?;
     for pl in cfg.plugins {

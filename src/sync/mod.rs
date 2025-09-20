@@ -17,6 +17,18 @@ use crate::sync::cleanup::{cleanup_stale_plugins, cleanup_stale_repos};
 use progress::{err_style, ok_style, spinner_style};
 use resolve::{resolve_source_file, symlink};
 
+/// Synchronize plugins defined in `config.toml`.
+///
+/// High-level flow:
+/// 1. Ensure directory layout under `~/.rz` (`bin/`, `plugins/`, `repos/`, and the parent of `config.toml`).
+/// 2. Load configuration and build a list of jobs to run (see [`jobs::build_jobs`]).
+/// 3. Run clone/fetch + link resolution **in parallel** with progress spinners.
+///    - For `source`-type plugins: resolve the source file inside the repo (or use `file` hint) and symlink it.
+///    - For `fpath`-type plugins: symlink the **directory** so it is appended to `fpath`.
+/// 4. Clean up stale plugin links and repositories that are no longer referenced (see [`cleanup`]).
+///
+/// Progress reporting uses `indicatif::MultiProgress`; each job gets its own spinner.  
+/// Errors in individual jobs are captured and shown on the job’s line; processing continues for the rest.
 pub fn cmd_sync() -> Result<()> {
     let p = paths()?;
     fs::create_dir_all(&p.bin)?;

@@ -5,6 +5,10 @@ use git2::{
 };
 use std::path::Path;
 
+/// Build a `FetchOptions` with SSH-agent credentials enabled.
+///
+/// This allows Git operations to authenticate using the user's SSH agent.
+/// If no SSH key is found, it falls back to default credentials.
 fn fetch_opts_with_creds() -> FetchOptions<'static> {
     let mut cb = RemoteCallbacks::new();
     cb.credentials(|_url, username_from_url, _allowed| {
@@ -16,6 +20,13 @@ fn fetch_opts_with_creds() -> FetchOptions<'static> {
     fo
 }
 
+/// Initialize and update all submodules for the given repository.
+///
+/// This ensures that nested submodules (e.g. plugins that depend on other repos)
+/// are cloned and checked out at the correct revision.
+///
+/// # Errors
+/// Returns an error if any submodule fails to initialize or update.
 fn update_submodules(repo: &Repository) -> Result<()> {
     let mut subs = repo.submodules().unwrap_or_default();
     for sm in subs.iter_mut() {
@@ -26,6 +37,26 @@ fn update_submodules(repo: &Repository) -> Result<()> {
     Ok(())
 }
 
+/// Ensure that a repository exists at the given path.
+///
+/// - If the repository already exists:
+///   - Performs `git fetch origin`
+///   - Resets to the specified revision (if provided)
+///   - Otherwise resets to the current HEAD
+///   - Updates submodules
+///
+/// - If the repository does not exist:
+///   - Clones it from the given URL
+///   - Optionally checks out the specified revision
+///   - Updates submodules
+///
+/// # Arguments
+/// - `url`: Remote Git URL (e.g., GitHub repo)
+/// - `dest`: Local directory path where the repo should exist
+/// - `rev`: Optional branch, tag, or commit SHA to checkout
+///
+/// # Errors
+/// - Returns an error if cloning, fetching, or checkout fails.
 pub fn ensure_repo(url: &str, dest: &Path, rev: Option<&str>) -> Result<()> {
     if dest.join(".git").exists() {
         let repo = Repository::open(dest)?;
@@ -54,6 +85,12 @@ pub fn ensure_repo(url: &str, dest: &Path, rev: Option<&str>) -> Result<()> {
     }
 }
 
+/// Perform `git fetch origin` to update remote refs.
+///
+/// This fetches both branches and tags from `origin` into the local repository.
+///
+/// # Errors
+/// Returns an error if the fetch operation fails.
 pub fn fetch_origin(repo: &Repository) -> Result<()> {
     let mut fo = fetch_opts_with_creds();
 
@@ -71,6 +108,16 @@ pub fn fetch_origin(repo: &Repository) -> Result<()> {
     Ok(())
 }
 
+/// Checkout a specific revision (tag, branch, or commit).
+///
+/// - Tries to resolve as a tag (`refs/tags/<rev>`)
+/// - Then as a remote branch (`refs/remotes/origin/<rev>`)
+/// - Finally as a raw commit SHA
+///
+/// The repository will be placed into a detached HEAD state.
+///
+/// # Errors
+/// Returns an error if the revision cannot be resolved.
 pub fn checkout_rev(repo: &Repository, rev: &str) -> Result<()> {
     let obj = repo
         .revparse_single(&format!("refs/tags/{}", rev))
