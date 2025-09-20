@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use tempfile::tempdir;
 
 pub fn sha256_file(path: &Path) -> Result<String> {
     let mut f = fs::File::open(path)?;
@@ -32,20 +33,24 @@ pub fn make_executable(_p: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn extract_if_archive(temp_path: &Path, work_dir: &Path) -> Result<PathBuf> {
+pub fn extract_if_archive(temp_path: &Path) -> Result<PathBuf> {
     let fname = temp_path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+
     if fname.ends_with(".tar.gz") || fname.ends_with(".tgz") {
+        let dir = tempdir()?;
         let f = fs::File::open(temp_path)?;
         let gz = GzDecoder::new(f);
         let mut ar = tar::Archive::new(gz);
+
         let want = if cfg!(windows) { "rz.exe" } else { "rz" };
-        let out = work_dir.join(want);
+        let out = dir.path().join(want);
+
         let mut found = false;
         for entry in ar.entries()? {
             let mut e = entry?;
             let path = e.path()?;
             if let Some(name) = path.file_name().and_then(|s| s.to_str())
-                && (name == want || name == "rz" || name == "rz.exe")
+                && (name == want || name == "rz")
             {
                 let mut of = fs::File::create(&out)?;
                 std::io::copy(&mut e, &mut of)?;
@@ -53,28 +58,9 @@ pub fn extract_if_archive(temp_path: &Path, work_dir: &Path) -> Result<PathBuf> 
                 break;
             }
         }
+
         if !found {
             return Err(anyhow!("archive does not contain rz binary"));
-        }
-        Ok(out)
-    } else if fname.ends_with(".zip") {
-        let f = fs::File::open(temp_path)?;
-        let mut zip = zip::ZipArchive::new(f)?;
-        let want = if cfg!(windows) { "rz.exe" } else { "rz" };
-        let out = work_dir.join(want);
-        let mut found = false;
-        for i in 0..zip.len() {
-            let mut file = zip.by_index(i)?;
-            let name = file.name().rsplit('/').next().unwrap_or("");
-            if name == want || name == "rz" || name == "rz.exe" {
-                let mut of = fs::File::create(&out)?;
-                std::io::copy(&mut file, &mut of)?;
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            return Err(anyhow!("zip does not contain rz binary"));
         }
         Ok(out)
     } else {
