@@ -7,7 +7,7 @@ RZ_COLOR_GREEN=$'\033[32m'
 
 # logging
 _rz_info() {
-  print -r -- "${RZ_COLOR_GREEN}rz: [info]${RZ_COLOR_RESET} $*"
+  print -r -- "$*"
 }
 
 RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
