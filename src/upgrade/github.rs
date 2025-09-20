@@ -65,7 +65,7 @@ use tempfile::NamedTempFile;
 
 pub fn download_to_temp(client: &Client, url: &str) -> Result<NamedTempFile> {
     let mut resp: Response = client.get(url).send()?.error_for_status()?;
-    let mut tmp = NamedTempFile::new()?;
-    std::io::copy(&mut resp, &mut tmp)?;
+    let tmp = tempfile::Builder::new().suffix(".tar.gz").tempfile()?;
+    std::io::copy(&mut resp, &mut tmp.as_file())?;
     Ok(tmp)
 }

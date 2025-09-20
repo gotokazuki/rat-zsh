@@ -3,19 +3,9 @@ use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(unix)]
 pub fn symlink(src: &Path, dst: &Path) -> Result<()> {
     use std::os::unix::fs::symlink;
     symlink(src, dst).map_err(Into::into)
-}
-#[cfg(windows)]
-pub fn symlink(src: &Path, dst: &Path) -> Result<()> {
-    if src.is_dir() {
-        std::os::windows::fs::symlink_dir(src, dst)?;
-    } else {
-        std::os::windows::fs::symlink_file(src, dst)?;
-    }
-    Ok(())
 }
 
 pub fn resolve_source_file(repo_dir: &Path, hint: Option<&str>) -> Result<PathBuf> {

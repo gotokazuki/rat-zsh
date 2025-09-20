@@ -9,11 +9,6 @@ use crate::paths::paths;
 use archive::{extract_if_archive, make_executable, sha256_file};
 use github::{candidate_asset_names, download_to_temp, fetch_latest_release, gh_client};
 
-#[cfg(windows)]
-fn target_bin_path(bin_dir: &Path) -> std::path::PathBuf {
-    bin_dir.join("rz.exe")
-}
-#[cfg(not(windows))]
 fn target_bin_path(bin_dir: &Path) -> std::path::PathBuf {
     bin_dir.join("rz")
 }
@@ -74,10 +69,6 @@ fn atomic_replace(src: &Path, dst: &Path) -> Result<()> {
             eprintln!("already up-to-date");
             return Ok(());
         }
-    }
-    #[cfg(windows)]
-    {
-        let _ = fs::remove_file(dst);
     }
     fs::rename(&tmp_dst, dst)?;
     Ok(())
