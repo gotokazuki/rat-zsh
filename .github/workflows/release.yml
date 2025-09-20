@@ -34,11 +34,6 @@ jobs:
             os: macos
             arch: aarch64
             use-cross: false
-          - runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            os: windows
-            arch: x86_64
-            use-cross: false
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +60,7 @@ jobs:
         working-directory: rz
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package (tar.gz/zip)
+      - name: Package (tar.gz)
         shell: bash
         run: |
           set -eux
@@ -75,32 +70,23 @@ jobs:
           mkdir -p "$DIST"
 
           EXE="rz"
-          if [[ "${{ matrix.os }}" == "windows" ]]; then
-            EXE="rz.exe"
-          fi
-
           BASENAME="rz-v${TAG}-${{ matrix.os }}-${{ matrix.arch }}"
           PKGDIR="${DIST}/${BASENAME}"
           mkdir -p "$PKGDIR"
 
           cp "${BIN_DIR}/${EXE}" "${PKGDIR}/"
           chmod +x "${PKGDIR}/${EXE}" || true
-          [[ -f LICENSE ]] && cp LICENSE "${PKGDIR}/"
-          [[ -f README.md ]] && cp README.md "${PKGDIR}/"
+          [[ -f ./LICENSE ]] && cp LICENSE "${PKGDIR}/"
 
-          if [[ "${{ matrix.os }}" == "windows" ]]; then
-            (cd "$DIST" && zip -r "${BASENAME}.zip" "${BASENAME}")
-          else
-            (cd "$DIST" && tar czf "${BASENAME}.tar.gz" "${BASENAME}")
-          fi
+          (cd "$DIST" && tar czf "${BASENAME}.tar.gz" "${BASENAME}")
+          echo "ASSET=${DIST}/${BASENAME}.tar.gz" >> $GITHUB_ENV
 
       - name: Generate checksums
         shell: bash
         run: |
           set -eux
-          shopt -s nullglob
           cd rz/dist
-          for f in *.{tar.gz,zip}; do
+          for f in *.tar.gz; do
             if command -v shasum >/dev/null 2>&1; then
               shasum -a 256 "$f" >> SHA256SUMS.txt
             else
@@ -113,7 +99,6 @@ jobs:
         with:
           files: |
             rz/dist/*.tar.gz
-            rz/dist/*.zip
             rz/dist/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
