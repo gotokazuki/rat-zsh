@@ -5,6 +5,27 @@ use std::path::{Component, Path};
 
 use super::PluginEntry;
 
+/// Collect plugins from the given directory and classify them into
+/// "normal" and "tail" groups.
+///
+/// - A plugin is identified by a "slug", usually derived from the path
+///   segment after `repos/`.
+/// - Entries whose slug matches `tail_slugs` will be placed in the `tail`
+///   group (these are typically plugins that must be loaded after others).
+/// - All other plugins are placed in the `normal` group.
+/// - Files, symlinks, and directories are all considered.
+/// - Broken symlinks or unreadable entries are skipped.
+///
+/// # Arguments
+/// - `dir`: Directory containing plugin files/symlinks.
+/// - `tail_slugs`: List of slugs that should be loaded last.
+///
+/// # Returns
+/// A tuple `(normal, tail)` where both are `Vec<PluginEntry>`.
+///
+/// # Errors
+/// Returns an error if the directory cannot be read for reasons other than
+/// `NotFound`. If the directory does not exist, returns empty vectors.
 pub fn collect_plugins(
     dir: &Path,
     tail_slugs: &[String],
@@ -76,6 +97,20 @@ pub fn collect_plugins(
     Ok((normal, tail))
 }
 
+/// Try to extract a plugin "slug" from the given path.
+///
+/// A slug is defined as the component immediately following a `repos`
+/// directory in the path (e.g., `.../repos/<slug>/...`).
+///
+/// Example:
+/// - `/home/user/.rz/repos/zsh-users__zsh-autosuggestions/...`
+///   → returns `"zsh-users__zsh-autosuggestions"`.
+///
+/// # Arguments
+/// - `target`: Path to examine.
+///
+/// # Returns
+/// `Some(slug)` if found, otherwise `None`.
 fn extract_slug(target: &Path) -> Option<String> {
     let mut comps = target.components().peekable();
     while let Some(c) = comps.next() {
