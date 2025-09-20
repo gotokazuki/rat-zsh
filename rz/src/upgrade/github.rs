@@ -42,18 +42,14 @@ pub fn fetch_latest_release(client: &Client) -> Result<Release> {
 }
 
 pub fn candidate_asset_names(tag: &str) -> Vec<String> {
-    let (os, arch, _exe) = detect_target();
-    vec![
-        format!("rz-{}-{}-{}.tar.gz", tag, os, arch),
-        format!("rz-{}-{}-{}.zip", tag, os, arch),
-    ]
+    let (os, arch) = detect_target();
+    vec![format!("rz-{}-{}-{}.tar.gz", tag, os, arch)]
 }
 
-fn detect_target() -> (&'static str, &'static str, &'static str) {
+fn detect_target() -> (&'static str, &'static str) {
     let os = match std::env::consts::OS {
         "linux" => "linux",
         "macos" => "macos",
-        "windows" => "windows",
         _ => "linux",
     };
     let arch = match std::env::consts::ARCH {
@@ -61,8 +57,7 @@ fn detect_target() -> (&'static str, &'static str, &'static str) {
         "aarch64" | "arm64" => "aarch64",
         _ => "x86_64",
     };
-    let exe = if os == "windows" { ".exe" } else { "" };
-    (os, arch, exe)
+    (os, arch)
 }
 
 use reqwest::blocking::Response;
