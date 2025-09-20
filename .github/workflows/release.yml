@@ -47,12 +47,14 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install cross (for cross-compiling)
+        working-directory: ./rz
         if: matrix.use-cross == 'true'
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
           rustup target add ${{ matrix.target }}
 
       - name: Build (release)
+        working-directory: ./rz
         shell: bash
         run: |
           set -eux
@@ -87,8 +89,6 @@ jobs:
           [[ -f README.md ]] && cp README.md "${PKGDIR}/"
 
           if [[ "${{ matrix.os }}" == "windows" ]]; then
-            # Windows は zip にするのも定番だが、要件が tar.gz なら msys-tar がなくて失敗するので zip にします
-            # （rz 側の candidate_asset_names に .zip も含めておくと自動で見つかる）
             (cd "$DIST" && zip -r "${BASENAME}.zip" "${BASENAME}")
             echo "ASSET=${DIST}/${BASENAME}.zip" >> $GITHUB_ENV
           else
