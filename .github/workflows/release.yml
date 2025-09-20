@@ -52,12 +52,10 @@ jobs:
 
       - name: Build (cross)
         if: ${{ matrix.use-cross }}
-        working-directory: rz
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build (cargo)
         if: ${{ !matrix.use-cross }}
-        working-directory: rz
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package (tar.gz)
@@ -66,7 +64,7 @@ jobs:
           set -eux
           TAG="${GITHUB_REF_NAME#v}"  # "v1.2.3" -> "1.2.3"
           BIN_DIR="target/${{ matrix.target }}/release"
-          DIST="rz/dist"
+          DIST="dist"
           mkdir -p "$DIST"
 
           EXE="rz"
@@ -85,7 +83,7 @@ jobs:
         shell: bash
         run: |
           set -eux
-          cd rz/dist
+          cd dist
           for f in *.tar.gz; do
             if command -v shasum >/dev/null 2>&1; then
               shasum -a 256 "$f" >> SHA256SUMS.txt
@@ -98,7 +96,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            rz/dist/*.tar.gz
-            rz/dist/SHA256SUMS.txt
+            dist/*.tar.gz
+            dist/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

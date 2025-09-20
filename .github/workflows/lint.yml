@@ -30,7 +30,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo clippy
         run: cargo clippy --all-targets -- -D warnings
-        working-directory: ./rz
       - name: Run cargo fmt check
         run: cargo fmt --all -- --check
-        working-directory: ./rz
