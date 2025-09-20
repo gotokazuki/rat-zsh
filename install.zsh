@@ -1,17 +1,32 @@
 #!/usr/bin/env zsh
 set -euo pipefail
+setopt NULL_GLOB EXTENDED_GLOB
 
-# colors
-RZ_COLOR_RESET=$'\033[0m'
-RZ_COLOR_GREEN=$'\033[32m'
+# OS
+case "$(uname -s)" in
+  Linux)  OS="linux" ;;
+  Darwin) OS="macos" ;;
+  *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+esac
+
+# ARCH
+case "$(uname -m)" in
+  x86_64|amd64) ARCH="x86_64" ;;
+  arm64|aarch64) ARCH="aarch64" ;;
+  *) echo "Unsupported ARCH: $(uname -m)" >&2; exit 1 ;;
+esac
 
 # logging
 _rz_info() {
   print -r -- "$*"
 }
 
-RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
+_rz_error() {
+  print -r -- "$*" >&2
+  exit 1
+}
 
+RZ_HOME="${XDG_CONFIG_HOME:-$HOME}/.rz"
 BIN_DIR="$RZ_HOME/bin"
 PLUGINS_DIR="$RZ_HOME/plugins"
 REPOS_DIR="$RZ_HOME/repos"
@@ -19,10 +34,38 @@ CONFIG="$RZ_HOME/config.toml"
 
 mkdir -p "$BIN_DIR" "$PLUGINS_DIR" "$REPOS_DIR"
 
-# download rz
-RZ_URL="https://raw.githubusercontent.com/gotokazuki/rat-zsh/main/rz"
-curl -fsSL "$RZ_URL" -o "$BIN_DIR/rz"
-chmod +x "$BIN_DIR/rz"
+OWNER="gotokazuki"
+REPO="rat-zsh"
+
+_rz_info "resolving latest release for ${OWNER}/${REPO} (${OS}/${ARCH})"
+API="https://api.github.com/repos/${OWNER}/${REPO}/releases/latest"
+
+ASSET_URL="$(
+  curl -fsSL "$API" \
+    | grep -oE '"browser_download_url": *"[^"]+"' \
+    | sed -E 's/"browser_download_url": *"([^"]+)"/\1/' \
+    | grep "rz-v.*-${OS}-${ARCH}\.tar\.gz$" \
+    | head -n1
+)"
+
+[[ -z "${ASSET_URL:-}" ]] && _rz_error "could not find a matching asset (OS=${OS} ARCH=${ARCH})."
+
+_rz_info "downloading: $ASSET_URL"
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+TAR="$TMPDIR/rz.tar.gz"
+curl -fsSL "$ASSET_URL" -o "$TAR"
+
+_rz_info "extracting"
+tar -C "$TMPDIR" -xzf "$TAR"
+
+typeset -a _candidates
+_candidates=("$TMPDIR"/**/rz(.N))
+EXE="${_candidates[1]:-}"
+
+[[ -z "${EXE:-}" ]] && _rz_error "extracted archive does not contain 'rz' binary"
+
+install -m 0755 "$EXE" "$BIN_DIR/rz"
 
 # generate config.toml if not exists
 if [[ ! -f "$CONFIG" ]]; then
