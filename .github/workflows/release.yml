@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+
 jobs:
   build:
     name: build (${{ matrix.target }} on ${{ matrix.runner }})
@@ -41,28 +44,26 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        if: matrix.use-cross == 'false'
+        if: ${{ !matrix.use-cross }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Install cross (for cross-compiling)
-        working-directory: ./rz
-        if: matrix.use-cross == 'true'
+        if: ${{ matrix.use-cross }}
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
           rustup target add ${{ matrix.target }}
 
-      - name: Build (release)
-        working-directory: ./rz
-        shell: bash
-        run: |
-          set -eux
-          if [[ "${{ matrix.use-cross }}" == "true" ]]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
+      - name: Build (cross)
+        if: ${{ matrix.use-cross }}
+        working-directory: rz
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (cargo)
+        if: ${{ !matrix.use-cross }}
+        working-directory: rz
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package (tar.gz/zip)
         shell: bash
@@ -70,7 +71,7 @@ jobs:
           set -eux
           TAG="${GITHUB_REF_NAME#v}"  # "v1.2.3" -> "1.2.3"
           BIN_DIR="target/${{ matrix.target }}/release"
-          DIST="dist"
+          DIST="rz/dist"
           mkdir -p "$DIST"
 
           EXE="rz"
@@ -79,7 +80,6 @@ jobs:
           fi
 
           BASENAME="rz-v${TAG}-${{ matrix.os }}-${{ matrix.arch }}"
-
           PKGDIR="${DIST}/${BASENAME}"
           mkdir -p "$PKGDIR"
 
@@ -90,10 +90,8 @@ jobs:
 
           if [[ "${{ matrix.os }}" == "windows" ]]; then
             (cd "$DIST" && zip -r "${BASENAME}.zip" "${BASENAME}")
-            echo "ASSET=${DIST}/${BASENAME}.zip" >> $GITHUB_ENV
           else
             (cd "$DIST" && tar czf "${BASENAME}.tar.gz" "${BASENAME}")
-            echo "ASSET=${DIST}/${BASENAME}.tar.gz" >> $GITHUB_ENV
           fi
 
       - name: Generate checksums
@@ -101,7 +99,7 @@ jobs:
         run: |
           set -eux
           shopt -s nullglob
-          cd dist
+          cd rz/dist
           for f in *.{tar.gz,zip}; do
             if command -v shasum >/dev/null 2>&1; then
               shasum -a 256 "$f" >> SHA256SUMS.txt
@@ -114,8 +112,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/SHA256SUMS.txt
+            rz/dist/*.tar.gz
+            rz/dist/*.zip
+            rz/dist/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
