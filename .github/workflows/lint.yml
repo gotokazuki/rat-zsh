@@ -33,3 +33,16 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Run cargo fmt check
         run: cargo fmt --all -- --check
+
+  markdown-lint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install markdownlint-cli2
+        run: npm install -g markdownlint-cli2
+      - name: Run markdownlint
+        run: markdownlint-cli2 .github/README.md
