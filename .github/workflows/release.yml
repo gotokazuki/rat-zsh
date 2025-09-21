@@ -87,7 +87,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       PROFILE: compact
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target-${{ matrix.runner }}-${{ matrix.target }}-${{ matrix.use-cross }}
       TAG: ${{ needs.prepare.outputs.tag }}
       VERSION: ${{ needs.prepare.outputs.version }}
     strategy:
