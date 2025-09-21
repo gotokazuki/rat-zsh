@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{env, path::PathBuf};
+use std::{env, ffi::OsString, path::PathBuf};
 
 /// Holds important directory paths used by rat-zsh.
 ///
@@ -15,15 +15,42 @@ pub struct Paths {
     pub config: PathBuf,
 }
 
-/// Returns the base directory for rat-zsh (`$XDG_CONFIG_HOME/.rz`).
+/// Compute the rat-zsh home directory from the given environment variables.
 ///
-/// If `$XDG_CONFIG_HOME` is not set, falls back to `$HOME/.config/.rz`.
-pub fn rz_home() -> Result<PathBuf> {
-    let xdg = env::var_os("XDG_CONFIG_HOME");
+/// This helper is a pure function that does not access the process environment directly,
+/// which makes it convenient for testing.
+///
+/// # Arguments
+/// - `xdg`: Value of the `XDG_CONFIG_HOME` environment variable, if any.
+/// - `home`: Value of the `HOME` environment variable, if any.
+///
+/// # Behavior
+/// - If `xdg` is set, the base directory is `<xdg>`.
+/// - Otherwise, it falls back to `<home>/.config`.
+/// - In both cases, `".rz"` is appended at the end.
+///
+/// # Returns
+/// A [`PathBuf`] representing the resolved rat-zsh home directory.
+fn rz_home_from_env(xdg: Option<OsString>, home: Option<OsString>) -> PathBuf {
     let base = xdg
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"));
-    Ok(base.join(".rz"))
+        .unwrap_or_else(|| PathBuf::from(home.unwrap_or_default()).join(".config"));
+    base.join(".rz")
+}
+
+/// Return the rat-zsh home directory based on the current process environment.
+///
+/// Resolution order:
+/// 1. If `$XDG_CONFIG_HOME` is set, use `$XDG_CONFIG_HOME/.rz`.
+/// 2. Otherwise, use `$HOME/.config/.rz`.
+///
+/// # Errors
+/// - Never fails. Always returns some path, even if `HOME` is unset (defaults to `.config/.rz`).
+pub fn rz_home() -> Result<PathBuf> {
+    Ok(rz_home_from_env(
+        env::var_os("XDG_CONFIG_HOME"),
+        env::var_os("HOME"),
+    ))
 }
 
 /// Returns a `Paths` struct with the resolved directories used by rat-zsh.
@@ -41,4 +68,48 @@ pub fn paths() -> Result<Paths> {
         repos: home.join("repos"),
         config: home.join("config.toml"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use tempfile::tempdir;
+
+    use crate::paths::Paths;
+
+    fn paths_under(home: &Path) -> Paths {
+        Paths {
+            bin: home.join("bin"),
+            plugins: home.join("plugins"),
+            repos: home.join("repos"),
+            config: home.join("config.toml"),
+        }
+    }
+
+    #[test]
+    fn rz_home_prefers_xdg_when_present() {
+        let xdg = tempdir().unwrap();
+        let home = tempdir().unwrap();
+
+        let got = super::rz_home_from_env(Some(xdg.path().into()), Some(home.path().into()));
+        assert_eq!(got, xdg.path().join(".rz"));
+    }
+
+    #[test]
+    fn rz_home_falls_back_to_home_dot_config() {
+        let home = tempdir().unwrap();
+        let got = super::rz_home_from_env(None, Some(home.path().into()));
+        assert_eq!(got, home.path().join(".config").join(".rz"));
+    }
+
+    #[test]
+    fn paths_under_builds_expected() {
+        let base = tempdir().unwrap();
+        let p = paths_under(&base.path().join(".rz"));
+        assert_eq!(p.bin, base.path().join(".rz/bin"));
+        assert_eq!(p.plugins, base.path().join(".rz/plugins"));
+        assert_eq!(p.repos, base.path().join(".rz/repos"));
+        assert_eq!(p.config, base.path().join(".rz/config.toml"));
+    }
 }

@@ -9,13 +9,14 @@ on:
 jobs:
   zsh-syntax-check:
     name: zsh syntax check
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Install zsh
+
+      - name: Ensure zsh installed
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zsh
+          command -v zsh || (sudo apt-get update && sudo apt-get install -y zsh)
+
       - name: Syntax check (install.zsh)
         run: zsh -n install.zsh
   rust-lint:

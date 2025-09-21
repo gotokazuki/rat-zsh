@@ -1,6 +1,6 @@
 [package]
 name = "rz"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 
 [dependencies]
@@ -20,3 +20,8 @@ hex = "0.4"
 flate2 = "1"
 tar = "0.4"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+serial_test = "3"
+httpmock = "0.7"
+serde_json = "1"

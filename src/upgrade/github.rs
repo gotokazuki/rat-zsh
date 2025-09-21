@@ -111,3 +111,81 @@ pub fn download_to_temp(client: &Client, url: &str) -> Result<NamedTempFile> {
     std::io::copy(&mut resp, &mut tmp.as_file())?;
     Ok(tmp)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use httpmock::prelude::*;
+    use std::fs;
+
+    #[test]
+    fn candidate_asset_names_formats_expected_name() {
+        let os = match std::env::consts::OS {
+            "linux" => "linux",
+            "macos" => "macos",
+            other => {
+                eprintln!("unsupported test os: {other}");
+                return;
+            }
+        };
+        let arch = match std::env::consts::ARCH {
+            "x86_64" => "x86_64",
+            "aarch64" | "arm64" => "aarch64",
+            other => {
+                eprintln!("unsupported test arch: {other}");
+                return;
+            }
+        };
+
+        let tag = "v0.1.2";
+        let got = candidate_asset_names(tag).expect("ok");
+        assert_eq!(got, vec![format!("rz-{tag}-{os}-{arch}.tar.gz")]);
+    }
+
+    #[test]
+    fn release_struct_deserializes_from_github_like_json() {
+        let json = r#"
+{
+    "tag_name": "v1.2.3",
+    "assets": [
+        {
+            "name": "rz-v1.2.3-macos-aarch64.tar.gz",
+            "browser_download_url": "https://example.com/rz-v1.2.3-macos-aarch64.tar.gz"
+        }
+    ]
+}"#;
+
+        let rel: Release = serde_json::from_str(json).expect("deserialize");
+        assert_eq!(rel.tag_name, "v1.2.3");
+        assert_eq!(rel.assets.len(), 1);
+        assert_eq!(rel.assets[0].name, "rz-v1.2.3-macos-aarch64.tar.gz");
+    }
+
+    #[test]
+    fn download_to_temp_writes_body_and_uses_tar_gz_suffix() {
+        let server = MockServer::start();
+        let body = b"hello world";
+        let m = server.mock(|when, then| {
+            when.method(GET).path("/file.tar.gz");
+            then.status(200)
+                .header("Content-Type", "application/octet-stream")
+                .body(body as &[_]);
+        });
+
+        let client = gh_client().expect("client");
+        let url = format!("{}/file.tar.gz", server.base_url());
+        let tmp = download_to_temp(&client, &url).expect("download");
+
+        let name = tmp
+            .path()
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        assert!(name.ends_with(".tar.gz"), "actual name: {name}");
+
+        let saved = fs::read(tmp.path()).expect("read");
+        assert_eq!(saved, body);
+
+        m.assert();
+    }
+}

@@ -11,6 +11,12 @@ Rat Zsh
       alt="Lint Status"
     />
   </a>
+  <a href="https://github.com/gotokazuki/rat-zsh/actions/workflows/test.yml">
+    <img
+      src="https://github.com/gotokazuki/rat-zsh/actions/workflows/test.yml/badge.svg?branch=main"
+      alt="Test Status"
+    />
+  </a>
   <a href="https://github.com/gotokazuki/rat-zsh/releases/latest">
     <img
       src="https://img.shields.io/github/v/release/gotokazuki/rat-zsh?logo=github&label=release"
