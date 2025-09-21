@@ -12,6 +12,7 @@ mod init;
 mod list;
 mod order;
 mod paths;
+mod progress;
 mod sync;
 mod upgrade;
 

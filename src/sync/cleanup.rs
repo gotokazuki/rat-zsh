@@ -1,3 +1,5 @@
+use crate::progress::{err_style, ok_style, spinner_style};
+
 use anyhow::Result;
 use indicatif::{MultiProgress, ProgressBar};
 use std::collections::HashSet;
@@ -5,8 +7,6 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Component, Path};
 use std::time::Duration;
-
-use super::progress::{err_style, ok_style, spinner_style};
 
 /// Remove stale plugin entries from the plugin directory.
 ///
@@ -42,7 +42,7 @@ pub fn cleanup_stale_plugins(
         let pb = mp.add(ProgressBar::new_spinner());
         pb.set_style(spinner_style());
         pb.set_message(format!("removing stale plugin: {}", name));
-        pb.enable_steady_tick(Duration::from_millis(80));
+        pb.enable_steady_tick(Duration::from_millis(200));
 
         match fs::remove_file(ent.path()) {
             Ok(_) => {
@@ -102,7 +102,7 @@ pub fn cleanup_stale_repos(
             let pb = mp.add(ProgressBar::new_spinner());
             pb.set_style(spinner_style());
             pb.set_message(format!("removing stale repo: {}", slug));
-            pb.enable_steady_tick(Duration::from_millis(80));
+            pb.enable_steady_tick(Duration::from_millis(200));
 
             match fs::remove_dir_all(ent.path()) {
                 Ok(_) => {
@@ -157,6 +157,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn cleanup_stale_plugins_removes_unexpected_entries() {
+        use indicatif::ProgressDrawTarget;
+
         let tmp = tempfile::tempdir().unwrap();
         let plugins_dir = tmp.path().join("plugins");
         fs::create_dir(&plugins_dir).unwrap();
@@ -171,6 +173,7 @@ mod tests {
         expect.insert("keep.plugin.zsh".to_string());
 
         let mp = MultiProgress::new();
+        mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(10));
         cleanup_stale_plugins(&mp, &plugins_dir, &expect).unwrap();
 
         assert!(keep.exists());
@@ -180,6 +183,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn cleanup_stale_repos_removes_unused_and_unexpected_repos() {
+        use indicatif::ProgressDrawTarget;
+
         let tmp = tempfile::tempdir().unwrap();
         let repos_dir = tmp.path().join("repos");
         let plugins_dir = tmp.path().join("plugins");
@@ -204,6 +209,7 @@ mod tests {
         let expect_slugs: HashSet<String> = HashSet::new();
 
         let mp = MultiProgress::new();
+        mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(10));
         cleanup_stale_repos(&mp, &repos_dir, &expect_slugs, &plugins_dir).unwrap();
 
         assert!(usedslug.exists(), "in-use repo must be preserved");
