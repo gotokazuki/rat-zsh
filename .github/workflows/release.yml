@@ -13,6 +13,8 @@ env:
 
 jobs:
   build:
+    env:
+      PROFILE: compact
     name: build (${{ matrix.target }} on ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -64,18 +66,18 @@ jobs:
 
       - name: Build (cross)
         if: ${{ matrix.use-cross }}
-        run: cross build --profile compact --target ${{ matrix.target }}
+        run: cross build --profile $PROFILE --target ${{ matrix.target }}
 
       - name: Build (cargo)
         if: ${{ !matrix.use-cross }}
-        run: cargo build --profile compact --target ${{ matrix.target }}
+        run: cargo build --profile $PROFILE --target ${{ matrix.target }}
 
       - name: Package (tar.gz)
         shell: bash
         run: |
           set -eux
           TAG="${GITHUB_REF_NAME#v}"  # "v1.2.3" -> "1.2.3"
-          BIN_DIR="target/${{ matrix.target }}/release"
+          BIN_DIR="target/${{ matrix.target }}/$PROFILE"
           DIST="dist"
           mkdir -p "$DIST"
 
