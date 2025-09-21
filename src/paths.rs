@@ -17,24 +17,15 @@ pub struct Paths {
 
 /// Compute the rat-zsh home directory from the given environment variables.
 ///
-/// This helper is a pure function that does not access the process environment directly,
-/// which makes it convenient for testing.
+/// Behavior:
+/// - If `xdg` is set, base is `<xdg>`.
+/// - Otherwise, base is `<home>`.
 ///
-/// # Arguments
-/// - `xdg`: Value of the `XDG_CONFIG_HOME` environment variable, if any.
-/// - `home`: Value of the `HOME` environment variable, if any.
-///
-/// # Behavior
-/// - If `xdg` is set, the base directory is `<xdg>`.
-/// - Otherwise, it falls back to `<home>/.config`.
-/// - In both cases, `".rz"` is appended at the end.
-///
-/// # Returns
-/// A [`PathBuf`] representing the resolved rat-zsh home directory.
+/// In both cases, `".rz"` is appended at the end.
 fn rz_home_from_env(xdg: Option<OsString>, home: Option<OsString>) -> PathBuf {
     let base = xdg
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(home.unwrap_or_default()).join(".config"));
+        .unwrap_or_else(|| PathBuf::from(home.unwrap_or_default()));
     base.join(".rz")
 }
 
@@ -42,10 +33,7 @@ fn rz_home_from_env(xdg: Option<OsString>, home: Option<OsString>) -> PathBuf {
 ///
 /// Resolution order:
 /// 1. If `$XDG_CONFIG_HOME` is set, use `$XDG_CONFIG_HOME/.rz`.
-/// 2. Otherwise, use `$HOME/.config/.rz`.
-///
-/// # Errors
-/// - Never fails. Always returns some path, even if `HOME` is unset (defaults to `.config/.rz`).
+/// 2. Otherwise, use `$HOME/.rz`.
 pub fn rz_home() -> Result<PathBuf> {
     Ok(rz_home_from_env(
         env::var_os("XDG_CONFIG_HOME"),
@@ -97,10 +85,10 @@ mod tests {
     }
 
     #[test]
-    fn rz_home_falls_back_to_home_dot_config() {
+    fn rz_home_falls_back_to_home() {
         let home = tempdir().unwrap();
         let got = super::rz_home_from_env(None, Some(home.path().into()));
-        assert_eq!(got, home.path().join(".config").join(".rz"));
+        assert_eq!(got, home.path().join(".rz"));
     }
 
     #[test]
