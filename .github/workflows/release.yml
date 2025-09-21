@@ -1,9 +1,14 @@
 name: Release
 
+concurrency:
+  group: release-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,11 +17,82 @@ env:
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
 
 jobs:
+  prepare:
+    name: Prepare version & tag
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.decide.outputs.should_release }}
+      version:        ${{ steps.ver.outputs.version }}
+      tag:            ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Extract version from Cargo.toml
+        id: ver
+        run: |
+          set -euo pipefail
+          ver=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.source == null) | .version')
+
+          if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z\.-]+)?$ ]]; then
+            echo "Invalid semver in Cargo.toml: $ver" >&2
+            exit 1
+          fi
+
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "tag=v$ver"    >> "$GITHUB_OUTPUT"
+          echo "Detected version: $ver"
+
+      - name: Decide release / create tag if needed
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+          new="v${{ steps.ver.outputs.version }}"
+          latest="$(git tag -l 'v*' | sort -V | tail -n1 || true)"
+          echo "latest=$latest new=$new"
+
+          if git rev-parse -q --verify "refs/tags/$new" >/dev/null; then
+            echo "Tag $new already exists. No release needed."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "$latest" ]; then
+            top="$(printf "%s\n%s\n" "$latest" "$new" | sort -V | tail -n1)"
+            if [ "$top" != "$new" ]; then
+              echo "Version decreased: $new < $latest" >&2
+              exit 1
+            fi
+          fi
+
+          git tag "$new"
+          git push origin "$new"
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "Created tag $new"
+
   build:
+    name: Build (${{ matrix.target }} on ${{ matrix.runner }})
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ${{ matrix.runner }}
     env:
       PROFILE: compact
-    name: build (${{ matrix.target }} on ${{ matrix.runner }})
-    runs-on: ${{ matrix.runner }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +127,9 @@ jobs:
 
       - name: Add target (non-cross)
         if: ${{ !matrix.use-cross }}
+        shell: bash
         run: |
+          set -euo pipefail
           rustup target add ${{ matrix.target }}
           if [[ "${{ matrix.target }}" == *-unknown-linux-musl ]]; then
             sudo apt-get update
@@ -60,29 +138,30 @@ jobs:
 
       - name: Install cross (for cross-compiling)
         if: ${{ matrix.use-cross }}
+        shell: bash
         run: |
+          set -euo pipefail
           cargo install cross --git https://github.com/cross-rs/cross
           rustup target add ${{ matrix.target }} || true
 
       - name: Build (cross)
         if: ${{ matrix.use-cross }}
-        run: cross build --profile $PROFILE --target ${{ matrix.target }}
+        run: cross build --profile "$PROFILE" --target ${{ matrix.target }}
 
       - name: Build (cargo)
         if: ${{ !matrix.use-cross }}
-        run: cargo build --profile $PROFILE --target ${{ matrix.target }}
+        run: cargo build --profile "$PROFILE" --target ${{ matrix.target }}
 
       - name: Package (tar.gz)
         shell: bash
         run: |
-          set -eux
-          TAG="${GITHUB_REF_NAME#v}"  # "v1.2.3" -> "1.2.3"
+          set -euo pipefail
           BIN_DIR="target/${{ matrix.target }}/$PROFILE"
           DIST="dist"
           mkdir -p "$DIST"
 
           EXE="rz"
-          BASENAME="rz-v${TAG}-${{ matrix.os }}-${{ matrix.arch }}"
+          BASENAME="rz-v${VERSION}-${{ matrix.os }}-${{ matrix.arch }}"
           PKGDIR="${DIST}/${BASENAME}"
           mkdir -p "$PKGDIR"
 
@@ -101,10 +180,13 @@ jobs:
           retention-days: 7
 
   publish:
-    name: Create Release & Upload assets
+    name: Create GitHub Release & upload assets
+    needs: [prepare, build]
+    if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
-    needs: build
-
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
@@ -114,10 +196,10 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Generate checksums (aggregate)
+      - name: Generate checksums
         shell: bash
         run: |
-          set -eux
+          set -euo pipefail
           cd dist
           : > SHA256SUMS.txt
           for f in *.tar.gz; do
@@ -130,17 +212,19 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Create GitHub Release
-        run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "Release ${{ github.ref_name }} 🐭" \
-            --notes "Automated release for ${{ github.ref_name }}"
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG" \
+            --title "Release $TAG 🐭" \
+            --notes "Automated release for $TAG"
 
       - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ github.ref_name }}" \
+          gh release upload "$TAG" \
             dist/*.tar.gz \
             dist/SHA256SUMS.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
