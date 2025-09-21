@@ -1,13 +1,17 @@
 [package]
 name = "rz"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2024"
 
 [profile.release]
-lto = "thin"
-codegen-units = 1
 strip = "symbols"
-panic = "abort" 
+
+[profile.compact]
+inherits = "release"
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

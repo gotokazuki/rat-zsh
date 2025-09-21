@@ -64,11 +64,11 @@ jobs:
 
       - name: Build (cross)
         if: ${{ matrix.use-cross }}
-        run: cross build --release --target ${{ matrix.target }}
+        run: cross build --profile compact --target ${{ matrix.target }}
 
       - name: Build (cargo)
         if: ${{ !matrix.use-cross }}
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --profile compact --target ${{ matrix.target }}
 
       - name: Package (tar.gz)
         shell: bash
