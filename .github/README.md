@@ -4,11 +4,13 @@
 Rat Zsh
 </p>
 </h1>
+<!-- markdownlint-disable MD013 -->
 <p align="center">
   <a href="https://github.com/gotokazuki/rat-zsh/actions/workflows/lint.yml"><img src="https://github.com/gotokazuki/rat-zsh/actions/workflows/lint.yml/badge.svg?branch=main" alt="Lint Status" /></a>
   <a href="https://github.com/gotokazuki/rat-zsh/actions/workflows/test.yml"><img src="https://github.com/gotokazuki/rat-zsh/actions/workflows/test.yml/badge.svg?branch=main" alt="Test Status" /></a>
   <a href="https://github.com/gotokazuki/rat-zsh/releases/latest"><img src="https://img.shields.io/github/v/release/gotokazuki/rat-zsh?logo=github&label=release" alt="Latest Release" /></a>
 </p>
+<!-- markdownlint-enable MD013 -->
 
 **Rat Zsh** is a minimal and lightweight **plugin manager for zsh**.  
 built in Rust for speed and simplicity.
