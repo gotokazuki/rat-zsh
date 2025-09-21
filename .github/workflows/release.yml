@@ -34,7 +34,6 @@ jobs:
         with:
           toolchain: stable
           override: true
-          profile: minimal
 
       - name: Fetch tags
         run: git fetch --tags --force
@@ -121,7 +120,6 @@ jobs:
         with:
           toolchain: stable
           override: true
-          profile: minimal
 
       - uses: Swatinem/rust-cache@v2
 
