@@ -13,9 +13,6 @@ on:
 permissions:
   contents: write
 
-env:
-  CARGO_TARGET_DIR: ${{ github.workspace }}/target
-
 jobs:
   prepare:
     name: Prepare version & tag
@@ -90,6 +87,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       PROFILE: compact
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target-${{ matrix.runner }}-${{ matrix.target }}-${{ matrix.use-cross }}
       TAG: ${{ needs.prepare.outputs.tag }}
       VERSION: ${{ needs.prepare.outputs.version }}
     strategy:
@@ -122,6 +120,8 @@ jobs:
           override: true
 
       - uses: Swatinem/rust-cache@v2
+        with:
+            shared-key: ${{ matrix.runner }}-${{ matrix.target }}-${{ matrix.use-cross }}
 
       - name: Add target (non-cross)
         if: ${{ !matrix.use-cross }}

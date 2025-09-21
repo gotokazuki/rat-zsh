@@ -46,7 +46,7 @@ pub struct Plugin {
 /// Load and parse a configuration file from the given path.
 ///
 /// This is a lower-level helper used by [`load_config`], which always
-/// resolves to the default path (`~/.config/.rz/config.toml`).
+/// resolves to the default path (`~/.rz/config.toml`).
 ///
 /// # Arguments
 /// - `path`: Path to a TOML file containing plugin configuration.
