@@ -1,0 +1,56 @@
+name: Git Tag
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Extract version from Cargo.toml
+        id: ver
+        run: |
+          ver=$(grep -m1 -E '^\s*version\s*=\s*"' Cargo.toml | sed -E 's/^[^"]*"([^"]+)".*$/\1/')
+          if ! echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z\.-]+)?$'; then
+            echo "Invalid semver in Cargo.toml: $ver" >&2
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $ver"
+
+      - name: Compare with latest tag and create if newer
+        run: |
+          new="v${{ steps.ver.outputs.version }}"
+          latest=$(git tag -l 'v*' | sort -V | tail -n1 || true)
+          echo "latest=$latest new=$new"
+
+          if git rev-parse -q --verify "refs/tags/$new" >/dev/null; then
+            echo "Tag $new already exists. Nothing to do."
+            exit 0
+          fi
+
+          if [ -z "$latest" ]; then
+            git tag "$new"
+            git push origin "$new"
+            exit 0
+          fi
+
+          if [ "$(printf "%s\n%s\n" "$latest" "$new" | sort -V | tail -n1)" != "$new" ]; then
+            echo "Version decreased: $new < $latest" >&2
+            exit 1
+          fi
+
+          git tag "$new"
+          git push origin "$new"
