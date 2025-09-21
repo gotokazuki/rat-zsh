@@ -20,12 +20,12 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             os: linux
             arch: x86_64
             use-cross: false
           - runner: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             os: linux
             arch: aarch64
             use-cross: true
@@ -49,7 +49,12 @@ jobs:
 
       - name: Add target (non-cross)
         if: ${{ !matrix.use-cross }}
-        run: rustup target add ${{ matrix.target }}
+        run: |
+          rustup target add ${{ matrix.target }}
+          if [[ "${{ matrix.target }}" == *-unknown-linux-musl ]]; then
+            sudo apt-get update
+            sudo apt-get install -y musl-tools
+          fi
 
       - name: Install cross (for cross-compiling)
         if: ${{ matrix.use-cross }}
@@ -59,11 +64,11 @@ jobs:
 
       - name: Build (cross)
         if: ${{ matrix.use-cross }}
-        run: cross build --release --target ${{ matrix.target }}
+        run: cross build --profile compact --target ${{ matrix.target }}
 
       - name: Build (cargo)
         if: ${{ !matrix.use-cross }}
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --profile compact --target ${{ matrix.target }}
 
       - name: Package (tar.gz)
         shell: bash
