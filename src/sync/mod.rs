@@ -1,21 +1,19 @@
 mod cleanup;
 mod jobs;
-mod progress;
 mod resolve;
-
-use anyhow::{Context, Result};
-use indicatif::{MultiProgress, ProgressBar};
-use rayon::prelude::*;
-use std::fs;
-use std::time::Duration;
 
 use crate::config::load_config;
 use crate::git::ensure_repo;
 use crate::paths::paths;
+use crate::progress::{err_style, ok_style, spinner_style};
 use crate::sync::cleanup::{cleanup_stale_plugins, cleanup_stale_repos};
 
-use progress::{err_style, ok_style, spinner_style};
+use anyhow::{Context, Result};
+use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget};
+use rayon::prelude::*;
 use resolve::{resolve_source_file, symlink};
+use std::fs;
+use std::time::Duration;
 
 /// Synchronize plugins defined in `config.toml`.
 ///
@@ -47,6 +45,8 @@ pub fn cmd_sync() -> Result<()> {
     let (jobs, expect_plugin_names, expect_repo_slugs) = jobs::build_jobs(&cfg, &p);
 
     let mp = MultiProgress::new();
+    mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(10));
+
     let run_style = spinner_style();
     let done_style = ok_style();
     let fail_style = err_style();
@@ -56,7 +56,7 @@ pub fn cmd_sync() -> Result<()> {
         let pb = mp.add(ProgressBar::new_spinner());
         pb.set_style(run_style.clone());
         pb.set_message(format!("syncing {}", j.display));
-        pb.enable_steady_tick(Duration::from_millis(80));
+        pb.enable_steady_tick(Duration::from_millis(200));
         bars.push(pb);
     }
 
@@ -83,7 +83,7 @@ pub fn cmd_sync() -> Result<()> {
         match res {
             Ok(_) => {
                 pb.set_style(done_style.clone());
-                pb.finish();
+                pb.finish_with_message(format!("synced {}", job.display));
             }
             Err(e) => {
                 pb.set_style(fail_style.clone());
