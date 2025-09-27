@@ -1,7 +1,8 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use git2::{
-    Cred, FetchOptions, RemoteCallbacks, Repository, ResetType, SubmoduleUpdateOptions,
-    build::RepoBuilder,
+    BranchType, Cred, FetchOptions, ObjectType, Reference, RemoteCallbacks, Repository, ResetType,
+    SubmoduleUpdateOptions,
+    build::{CheckoutBuilder, RepoBuilder},
 };
 use std::path::Path;
 
@@ -37,26 +38,72 @@ fn update_submodules(repo: &Repository) -> Result<()> {
     Ok(())
 }
 
+/// Attach to the remote's default branch (origin/HEAD), creating a local
+/// tracking branch if necessary, and hard-reset to the remote tip.
+///
+/// Fallbacks are tried in order if `origin/HEAD` is missing:
+/// `refs/remotes/origin/main` → `refs/remotes/origin/master`.
+///
+/// # Errors
+/// Returns an error if no suitable default branch can be found or checkout fails.
+fn attach_default_branch(repo: &Repository) -> Result<()> {
+    let target_remote_ref = if let Ok(origin_head) = repo.find_reference("refs/remotes/origin/HEAD")
+    {
+        origin_head
+            .symbolic_target()
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow!("origin/HEAD has no symbolic target"))?
+    } else if repo.find_reference("refs/remotes/origin/main").is_ok() {
+        "refs/remotes/origin/main".to_string()
+    } else if repo.find_reference("refs/remotes/origin/master").is_ok() {
+        "refs/remotes/origin/master".to_string()
+    } else {
+        return Err(anyhow!(
+            "could not determine default branch (missing origin/HEAD, origin/main, origin/master)"
+        ));
+    };
+
+    let branch_name = target_remote_ref
+        .strip_prefix("refs/remotes/origin/")
+        .ok_or_else(|| anyhow!("unexpected remote ref: {}", target_remote_ref))?;
+
+    let remote_tip = repo.find_reference(&target_remote_ref)?.peel_to_commit()?;
+
+    let local_ref = match repo.find_branch(branch_name, BranchType::Local) {
+        Ok(b) => b.into_reference(),
+        Err(_) => {
+            let mut b = repo.branch(branch_name, &remote_tip, true)?;
+            b.set_upstream(Some(&format!("origin/{}", branch_name)))?;
+            b.into_reference()
+        }
+    };
+
+    repo.set_head(
+        local_ref
+            .name()
+            .ok_or_else(|| anyhow!("invalid reference name"))?,
+    )?;
+    repo.reset(remote_tip.as_object(), ResetType::Hard, None)?;
+    repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
+    Ok(())
+}
+
 /// Ensure that a repository exists at the given path.
 ///
 /// - If the repository already exists:
 ///   - Performs `git fetch origin`
-///   - Resets to the specified revision (if provided)
-///   - Otherwise resets to the current HEAD
+///   - If `rev` is Some: checkout that revision (branch→attach / tag・SHA→detached)
+///   - If `rev` is None: **attach to the remote's default branch** (origin/HEAD)
 ///   - Updates submodules
 ///
 /// - If the repository does not exist:
 ///   - Clones it from the given URL
-///   - Optionally checks out the specified revision
+///   - If `rev` is Some: checkout that revision
+///   - If `rev` is None: **attach to the remote's default branch**
 ///   - Updates submodules
 ///
-/// # Arguments
-/// - `url`: Remote Git URL (e.g., GitHub repo)
-/// - `dest`: Local directory path where the repo should exist
-/// - `rev`: Optional branch, tag, or commit SHA to checkout
-///
 /// # Errors
-/// - Returns an error if cloning, fetching, or checkout fails.
+/// Returns an error if cloning, fetching, or checkout fails.
 pub fn ensure_repo(url: &str, dest: &Path, rev: Option<&str>) -> Result<()> {
     if dest.join(".git").exists() {
         let repo = Repository::open(dest)?;
@@ -64,8 +111,7 @@ pub fn ensure_repo(url: &str, dest: &Path, rev: Option<&str>) -> Result<()> {
         if let Some(r) = rev {
             checkout_rev(&repo, r)?;
         } else {
-            let head = repo.head()?.peel_to_commit()?;
-            repo.reset(head.as_object(), ResetType::Hard, None)?;
+            attach_default_branch(&repo)?;
         }
         update_submodules(&repo)?;
         Ok(())
@@ -79,6 +125,9 @@ pub fn ensure_repo(url: &str, dest: &Path, rev: Option<&str>) -> Result<()> {
 
         if let Some(r) = rev {
             checkout_rev(&repo, r)?;
+        } else {
+            fetch_origin(&repo)?;
+            attach_default_branch(&repo)?;
         }
         update_submodules(&repo)?;
         Ok(())
@@ -108,24 +157,77 @@ pub fn fetch_origin(repo: &Repository) -> Result<()> {
     Ok(())
 }
 
-/// Checkout a specific revision (tag, branch, or commit).
+/// Attach HEAD to the given branch reference and update the working tree.
 ///
-/// - Tries to resolve as a tag (`refs/tags/<rev>`)
-/// - Then as a remote branch (`refs/remotes/origin/<rev>`)
-/// - Finally as a raw commit SHA
-///
-/// The repository will be placed into a detached HEAD state.
+/// Moves HEAD to the provided branch ref (attached state) and checks out
+/// the branch tip into the worktree.
 ///
 /// # Errors
-/// Returns an error if the revision cannot be resolved.
-pub fn checkout_rev(repo: &Repository, rev: &str) -> Result<()> {
-    let obj = repo
-        .revparse_single(&format!("refs/tags/{}", rev))
-        .or_else(|_| repo.revparse_single(&format!("refs/remotes/origin/{}", rev)))
-        .or_else(|_| repo.revparse_single(rev))
-        .with_context(|| format!("rev not found: {}", rev))?;
+/// Returns an error if the reference has no valid name, or if updating
+/// HEAD or checking out the branch fails.
+fn checkout_attach_to_reference(repo: &Repository, reference: &Reference) -> Result<()> {
+    let name = reference
+        .name()
+        .ok_or_else(|| anyhow!("invalid reference name"))?;
+    repo.set_head(name)?;
+    repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
+    Ok(())
+}
 
-    repo.checkout_tree(&obj, None)?;
-    repo.set_head_detached(obj.id())?;
+/// Checkout a specific revision (branch, tag, or commit).
+///
+/// Resolution order:
+/// 1. Local branch (`refs/heads/<rev>`) → attach HEAD to the branch
+/// 2. Remote branch (`refs/remotes/origin/<rev>`) → create/attach a local tracking branch
+/// 3. Tag (`refs/tags/<rev>`) → peel to the commit and detach HEAD
+/// 4. Commit SHA or revspec → peel to the commit and detach HEAD
+///
+/// - Branches are checked out in an **attached** state (HEAD tracks the branch).
+/// - Tags and raw commits are checked out in a **detached** state.
+///
+/// # Errors
+/// Returns an error if the revision cannot be resolved or if checkout fails.
+pub fn checkout_rev(repo: &Repository, rev: &str) -> Result<()> {
+    if let Ok(reference) = repo.find_reference(&format!("refs/heads/{}", rev)) {
+        checkout_attach_to_reference(repo, &reference)?;
+        return Ok(());
+    }
+
+    if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/origin/{}", rev)) {
+        let target_commit = remote_ref.peel_to_commit()?;
+
+        let reference = match repo.find_branch(rev, BranchType::Local) {
+            Ok(b) => b.into_reference(),
+            Err(_) => {
+                let mut b = repo.branch(rev, &target_commit, true)?;
+                b.set_upstream(Some(&format!("origin/{}", rev)))?;
+                b.into_reference()
+            }
+        };
+
+        repo.reset(target_commit.as_object(), ResetType::Hard, None)?;
+        checkout_attach_to_reference(repo, &reference)?;
+        return Ok(());
+    }
+
+    if let Ok(tag_obj) = repo.revparse_single(&format!("refs/tags/{}", rev)) {
+        let commit = tag_obj
+            .peel(ObjectType::Commit)?
+            .into_commit()
+            .map_err(|_| anyhow!("tag didn't peel to a commit"))?;
+        repo.checkout_tree(commit.as_object(), None)?;
+        repo.set_head_detached(commit.id())?;
+        return Ok(());
+    }
+
+    let obj = repo
+        .revparse_single(rev)
+        .with_context(|| format!("rev not found: {}", rev))?;
+    let commit = obj
+        .peel(ObjectType::Commit)?
+        .into_commit()
+        .map_err(|_| anyhow!("rev didn't peel to a commit"))?;
+    repo.checkout_tree(commit.as_object(), None)?;
+    repo.set_head_detached(commit.id())?;
     Ok(())
 }
