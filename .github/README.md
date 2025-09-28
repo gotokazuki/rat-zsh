@@ -13,7 +13,7 @@ Rat Zsh
 <!-- markdownlint-enable MD013 -->
 
 **Rat Zsh** is a minimal and lightweight **plugin manager for zsh**.  
-built in Rust for speed and simplicity.
+Built in Rust for speed and simplicity.
 
 - 🚀 Installation with a single `curl` line
 - ⚙️ Configuration file in TOML (`$(rz home)/config.toml`)
@@ -73,7 +73,7 @@ file   = "zsh-abbr.zsh"
 |--------|-------------------------------------------------|
 | source | Plugin source (currently only `github` is supported) |
 | repo   | Repository in `owner/repo` format               |
-| rev    | Optional. Fix to a tag or branch                |
+| rev    | Optional. Pin to a tag or branch                |
 | file   | Optional. Relative path to the file to `source` |
 | type   | `"source"` or `"fpath"` (default: `"source"`)   |
 | name   | Optional. Alias name for the plugin             |
@@ -128,22 +128,35 @@ type   = "fpath"
 
 - If rev is not specified, the plugin is synced to the default branch (usually main or master).
 - When rev is specified, Rat Zsh checks out that branch or tag after cloning or fetching.
+- Tags are checked out in a detached state.
+- Branches are checked out in an attached state and will track updates.
 
 ## Plugin load order
 
-By default, rat-zsh loads plugins in alphabetical order, except it enforces the following rule:
+By default, Rat Zsh loads plugins in the following order:
 
-- all other plugins
-- `zsh-users/zsh-autosuggestions`
-- `zsh-users/zsh-syntax-highlighting`
+| Priority | Plugins                              |
+|----------|--------------------------------------|
+| 1        | All other plugins (alphabetical)     |
+| 2        | zsh-users/zsh-autosuggestions        |
+| 3        | zsh-users/zsh-syntax-highlighting    |
 
-rat-zsh handles this automatically:
-all other plugins are sourced first, then `zsh-autosuggestions`, and finally `zsh-syntax-highlighting`.
+This order is enforced automatically — you don’t need to configure it manually.
 
-You can check the effective order with:
+To see the actual order on your system:
 
 ```zsh
-rz order
+rz list
+```
+
+Example output:
+
+```zsh
+- olets/zsh-abbr (github) [source]
+- zsh-users/zsh-completions (github) [fpath]
+- zsh-users/zsh-history-substring-search (github) [source]
+- zsh-users/zsh-autosuggestions (github) [source]
+- zsh-users/zsh-syntax-highlighting (github) [source]
 ```
 
 ## Setting up `.zshrc`
@@ -160,9 +173,8 @@ eval "$("${XDG_CONFIG_HOME:-$HOME}"/.rz/bin/rz init)"
 rz init     # Print initialization code for .zshrc
 rz sync     # Clone/update plugins defined in config.toml
 rz upgrade  # Update rat-zsh itself to the latest release
-rz list     # List parsed plugins
-rz home     # Show rz home directory
-rz order    # Show the effective plugin load order
+rz list     # Show plugins in the effective load order with source/type metadata
+rz home     # Show the rz home directory
 ```
 
 ## Update
@@ -187,7 +199,7 @@ rm -rf "$(rz home)"
 
 Then remove the line `eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"` from `.zshrc`.
 
-## Recommended setting
+## Recommended configuration
 
 ### Speeding up zsh-autosuggestions
 
