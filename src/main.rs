@@ -14,7 +14,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use rz::{cmd_init, cmd_list, cmd_order, cmd_sync, cmd_upgrade, rz_home};
+use rz::{cmd_init, cmd_list, cmd_sync, cmd_upgrade, rz_home};
 
 /// Command-line interface definition.
 ///
@@ -44,10 +44,8 @@ enum Cmd {
     Upgrade,
     /// List parsed plugins
     List,
-    /// Show rz home directory
+    /// Show plugins in the effective load order with source/type metadata
     Home,
-    /// Show the effective plugin load order
-    Order,
 }
 
 /// CLI entry point.
@@ -66,6 +64,5 @@ fn main() -> Result<()> {
             println!("{}", rz_home()?.display());
             Ok(())
         }
-        Cmd::Order => cmd_order(),
     }
 }

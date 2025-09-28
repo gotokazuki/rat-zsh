@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Component, Path};
 
-use super::PluginEntry;
+use super::order::PluginEntry;
 
 /// Collect plugins from the given directory and classify them into
 /// "normal" and "tail" groups.
@@ -127,10 +127,11 @@ fn extract_slug(target: &Path) -> Option<String> {
 mod tests {
     use super::*;
     use std::fs;
+    #[cfg(unix)]
     use std::os::unix::fs as unix_fs;
     use tempfile::tempdir;
 
-    fn displays(mut v: Vec<super::PluginEntry>) -> Vec<String> {
+    fn displays(mut v: Vec<crate::list::order::PluginEntry>) -> Vec<String> {
         v.sort_by(|a, b| a.display.cmp(&b.display));
         v.into_iter().map(|e| e.display).collect()
     }
@@ -143,14 +144,14 @@ mod tests {
             .join("owner__repo")
             .join("path")
             .join("file.zsh");
-        let got = super::extract_slug(&p);
+        let got = extract_slug(&p);
         assert_eq!(got.as_deref(), Some("owner__repo"));
     }
 
     #[test]
     fn extract_slug_none_when_no_repos_component() {
         let p = Path::new("/some/where/owner__repo/file.zsh");
-        assert!(super::extract_slug(p).is_none());
+        assert!(extract_slug(p).is_none());
     }
 
     #[test]
@@ -171,16 +172,23 @@ mod tests {
 
         let plugins = base.join("plugins");
         fs::create_dir_all(&plugins).unwrap();
-        let link_tail = plugins.join("tail-link");
-        let link_norm = plugins.join("norm-link");
-        unix_fs::symlink(&file_tail, &link_tail).unwrap();
-        unix_fs::symlink(&file_norm, &link_norm).unwrap();
+
+        #[cfg(unix)]
+        {
+            let link_tail = plugins.join("tail-link");
+            let link_norm = plugins.join("norm-link");
+            unix_fs::symlink(&file_tail, &link_tail).unwrap();
+            unix_fs::symlink(&file_norm, &link_norm).unwrap();
+        }
 
         let plain = plugins.join("plain.plugin.zsh");
         fs::write(&plain, "# plain").unwrap();
 
-        let broken = plugins.join("broken-link");
-        unix_fs::symlink(plugins.join("no/such/file.zsh"), &broken).unwrap();
+        #[cfg(unix)]
+        {
+            let broken = plugins.join("broken-link");
+            unix_fs::symlink(plugins.join("no/such/file.zsh"), &broken).unwrap();
+        }
 
         let tail_slugs = vec![slug_tail.to_string()];
 
@@ -193,6 +201,7 @@ mod tests {
         norm_disp.sort();
         let mut expected = vec![
             "plain.plugin.zsh".to_string(),
+            #[cfg(unix)]
             "broken-link".to_string(),
             "zsh-users/zsh-autosuggestions".to_string(),
         ];
