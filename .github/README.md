@@ -31,6 +31,14 @@ curl -fsSL https://raw.githubusercontent.com/gotokazuki/rat-zsh/main/install.zsh
 This installs `$(rz home)/bin/rz`.  
 (Default install location is `$XDG_CONFIG_HOME/.rz`. If not set, it falls back to `$HOME/.rz`.)
 
+## Setting up `.zshrc`
+
+Add the following line to your `.zshrc`:
+
+```zsh
+eval "$("${XDG_CONFIG_HOME:-$HOME}"/.rz/bin/rz init)"
+```
+
 ## Configuration
 
 Write your plugin configuration in `$(rz home)/config.toml`.  
@@ -157,14 +165,6 @@ Example output:
 - zsh-users/zsh-history-substring-search (github) [source]
 - zsh-users/zsh-autosuggestions (github) [source]
 - zsh-users/zsh-syntax-highlighting (github) [source]
-```
-
-## Setting up `.zshrc`
-
-Add the following line to your `.zshrc`:
-
-```zsh
-eval "$("${XDG_CONFIG_HOME:-$HOME}"/.rz/bin/rz init)"
 ```
 
 ## Commands
