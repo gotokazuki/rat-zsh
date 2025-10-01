@@ -7,7 +7,7 @@
 //! - `rz init` prints initialization code for `.zshrc`
 //! - `rz sync` clones or updates configured plugins
 //! - `rz upgrade` updates rz itself to the latest release
-//! - `rz list` and `rz order` show the current state
+//! - `rz list` show plugins in the effective load order with source/type metadata
 //! - `rz home` prints the rz home directory
 //!
 //! This CLI is built with [clap](https://docs.rs/clap).
