@@ -9,7 +9,7 @@ use std::io::{self, Write};
 /// # Notes for developers
 /// - The output is intended to be used like:
 ///   ```zsh
-///   eval "$($(rz) init)"
+///   eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"
 ///   ```
 ///   so escaping and quoting inside `init.zsh` must be correct.
 /// - Do not modify this function to generate code dynamically.
