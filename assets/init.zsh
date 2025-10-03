@@ -6,7 +6,7 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   typeset -g RZ_PLUGINS="$RZ_HOME/plugins"
 
   export PATH="$RZ_BIN:$PATH"
-  fpath=("$RZ_PLUGINS" $fpath)
+  fpath=("$RZ_PLUGINS"/*(N-/) $fpath)
 
   autoload -Uz compinit
   if [[ -z "${_RZ_COMPINIT_DONE:-}" ]]; then
