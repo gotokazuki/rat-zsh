@@ -160,11 +160,14 @@ rz list
 Example output:
 
 ```zsh
+Source order
 - olets/zsh-abbr (github) [source]
-- zsh-users/zsh-completions (github) [fpath]
 - zsh-users/zsh-history-substring-search (github) [source]
 - zsh-users/zsh-autosuggestions (github) [source]
 - zsh-users/zsh-syntax-highlighting (github) [source]
+
+fpath
+- zsh-users/zsh-completions (github) [fpath: /Users/name/.rz/repos/zsh-users__zsh-completions/src]
 ```
 
 ## Commands
