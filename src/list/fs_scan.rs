@@ -1,9 +1,74 @@
 use anyhow::Result;
 use std::ffi::OsStr;
 use std::fs;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use super::order::PluginEntry;
+
+#[derive(Debug, Clone)]
+pub struct FpathEntry {
+    pub slug: String,
+    pub display: String,
+    pub dir: PathBuf,
+}
+
+pub fn collect_fpath_dirs(dir: &Path) -> Result<Vec<FpathEntry>> {
+    let mut out = Vec::new();
+    let rd = match fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+        Err(e) => return Err(e.into()),
+    };
+
+    for ent in rd.flatten() {
+        let path = ent.path();
+        let ft = match ent.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+
+        let target = if ft.is_symlink() {
+            match fs::read_link(&path) {
+                Ok(link) => {
+                    let abs = if link.is_absolute() {
+                        link
+                    } else {
+                        path.parent().unwrap_or(Path::new(".")).join(link)
+                    };
+                    fs::canonicalize(&abs).unwrap_or(abs)
+                }
+                Err(_) => path.clone(),
+            }
+        } else {
+            path.clone()
+        };
+
+        if !target.is_dir() {
+            continue;
+        }
+
+        let (slug, display) = if let Some(s) = extract_slug(&target) {
+            let d = s.replace("__", "/");
+            (s, d)
+        } else {
+            let d = path
+                .file_name()
+                .and_then(OsStr::to_str)
+                .unwrap_or_default()
+                .to_string();
+            (String::new(), d)
+        };
+
+        out.push(FpathEntry {
+            slug,
+            display,
+            dir: target,
+        });
+    }
+
+    out.sort_by(|a, b| a.dir.cmp(&b.dir));
+    Ok(out)
+}
 
 /// Collect plugins from the given directory and classify them into
 /// "normal" and "tail" groups.

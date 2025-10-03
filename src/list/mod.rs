@@ -1,4 +1,5 @@
 use crate::config::load_config;
+use crate::paths::paths;
 use anyhow::Result;
 use order::{PluginEntry, resolve_order};
 use std::collections::HashMap;
@@ -43,18 +44,36 @@ pub fn cmd_list() -> Result<()> {
         meta.insert(slug, (source, ty, name));
     }
 
+    println!("Source order");
     let ordered: Vec<PluginEntry> = resolve_order()?;
 
-    for e in ordered {
-        if e.slug.is_empty() {
-            println!("- {}", e.display);
-            continue;
-        }
+    for e in &ordered {
         if let Some((source, ty, name)) = meta.get(&e.slug).cloned() {
+            if ty == "fpath" {
+                continue;
+            }
             let shown = name.unwrap_or_else(|| e.display.clone());
-            println!("- {} ({}) [{}]", shown, source, ty);
+            println!("- {} ({}) [source]", shown, source);
         } else {
             println!("- {}", e.display);
+        }
+    }
+
+    let p = paths()?;
+    let fpaths = fs_scan::collect_fpath_dirs(&p.plugins)?;
+
+    println!("\nfpath");
+    for f in &fpaths {
+        if let Some((source, ty, name)) = meta.get(&f.slug).cloned() {
+            if ty == "fpath" {
+                let shown = name.unwrap_or_else(|| f.display.clone());
+                println!("- {} ({}) [fpath: {}]", shown, source, f.dir.display());
+            } else {
+                let shown = name.unwrap_or_else(|| f.display.clone());
+                println!("- {} ({}) [dir: {}]", shown, source, f.dir.display());
+            }
+        } else {
+            println!("- {} [fpath: {}]", f.display, f.dir.display());
         }
     }
 
