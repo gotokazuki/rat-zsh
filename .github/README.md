@@ -12,16 +12,29 @@ Rat Zsh
 </p>
 <!-- markdownlint-enable MD013 -->
 
-**Rat Zsh** is a minimal and lightweight **plugin manager for zsh**.  
-Built in Rust for speed and simplicity.  
-Designed to be minimal and reproducible — no magic, no heavy frameworks.
+<p align="center">
+A lightweight, fast, and reproducible plugin manager for zsh.<br>
+Made with 🐭 & 🦀 — no magic, no heavy frameworks.
+</p>
 
-- 🚀 Installation with a single `curl` line
-- ⚙️ Configuration file in TOML (`$(rz home)/config.toml`)
-- 🧩 Plugins are fetched from GitHub repositories
-- 📦 Just add one `eval` line in `.zshrc` to start using it
-- ⚡️ Parallel plugin sync
-- 🔄 Self-upgrade via `rz upgrade`
+## Features 🐭✨
+
+- 🚀 Simple setup
+  - Install with a single `curl` line
+  - Just add one `eval` line in `.zshrc` to start using it
+- ⚙️ Configurable and reproducible
+  - Simple TOML-based configuration
+  - Automatic plugin load order control
+- 🐙 GitHub integration
+  - Fetches plugins from GitHub repositories
+  - Supports branches, tags, and commits
+  - Handles Git submodules automatically
+- ⚡️ Lightweight and fast
+  - Parallel plugin sync
+  - Built in Rust 🦀
+- 🔄 Seamless updates
+  - Self-upgrade
+  - Plugin sync
 
 ## Installation
 
