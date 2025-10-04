@@ -7,6 +7,14 @@ use std::collections::HashMap;
 mod fs_scan;
 mod order;
 
+#[derive(Clone)]
+struct Meta {
+    source: String,
+    ty: String,
+    name: Option<String>,
+    fpath_dirs: Vec<String>,
+}
+
 /// Print plugins in their effective load order, split by **source** and **fpath** roles.
 ///
 /// This command merges information from:
@@ -51,25 +59,30 @@ mod order;
 /// Returns an error if configuration loading fails or if plugin directory scanning fails.
 pub fn cmd_list() -> Result<()> {
     let cfg = load_config()?;
-    let mut meta: HashMap<String, (String, String, Option<String>)> = HashMap::new();
+    let mut meta: HashMap<String, Meta> = HashMap::new();
     for pl in cfg.plugins {
         let slug = pl.repo.replace('/', "__");
-        let source = pl.source.clone();
-        let ty = pl.r#type.as_deref().unwrap_or("source").to_string();
-        let name = pl.name.clone();
-        meta.insert(slug, (source, ty, name));
+        meta.insert(
+            slug,
+            Meta {
+                source: pl.source.clone(),
+                ty: pl.r#type.as_deref().unwrap_or("source").to_string(),
+                name: pl.name.clone(),
+                fpath_dirs: pl.fpath_dirs.clone(),
+            },
+        );
     }
 
     println!("Source order");
     let ordered: Vec<PluginEntry> = resolve_order()?;
 
     for e in &ordered {
-        if let Some((source, ty, name)) = meta.get(&e.slug).cloned() {
-            if ty == "fpath" {
+        if let Some(m) = meta.get(&e.slug).cloned() {
+            if m.ty == "fpath" {
                 continue;
             }
-            let shown = name.unwrap_or_else(|| e.display.clone());
-            println!("- {} ({}) [source]", shown, source);
+            let shown = m.name.unwrap_or_else(|| e.display.clone());
+            println!("- {} ({}) [source]", shown, m.source);
         } else {
             println!("- {}", e.display);
         }
@@ -82,17 +95,17 @@ pub fn cmd_list() -> Result<()> {
         if e.slug.is_empty() {
             continue;
         }
-        if let Some((source, ty, name)) = meta.get(&e.slug).cloned() {
-            if ty != "fpath" {
+        if let Some(m) = meta.get(&e.slug).cloned() {
+            if m.ty != "fpath" {
                 continue;
             }
-            let shown = name.unwrap_or_else(|| e.display.clone());
-            let dirs = fs_scan::fpath_dirs_for_slug(&p.plugins, &e.slug).unwrap_or_default();
+            let shown = m.name.unwrap_or_else(|| e.display.clone());
+            let dirs = fs_scan::fpath_dirs_from_config(&p.plugins, &e.slug, &m.fpath_dirs)?;
             let suffix = fs_scan::format_fpath_dirs(&dirs);
             if suffix.is_empty() {
-                println!("- {} ({}) [fpath]", shown, source);
+                println!("- {} ({}) [fpath]", shown, m.source);
             } else {
-                println!("- {} ({}) [fpath: {}]", shown, source, suffix);
+                println!("- {} ({}) [fpath: {}]", shown, m.source, suffix);
             }
         }
     }
