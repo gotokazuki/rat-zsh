@@ -48,38 +48,38 @@ A sample file will be created on the first install.
 ```toml
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-autosuggestions"
-type   = "source"
-file   = "zsh-autosuggestions.zsh"
+repo = "zsh-users/zsh-autosuggestions"
+type = "source"
+file = "zsh-autosuggestions.zsh"
 
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-completions"
-type   = "fpath"
+repo = "zsh-users/zsh-completions"
+type = "fpath"
 fpath_dirs = ["src"]
 
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-syntax-highlighting"
-type   = "source"
-file   = "zsh-syntax-highlighting.zsh"
+repo = "zsh-users/zsh-syntax-highlighting"
+type = "source"
+file = "zsh-syntax-highlighting.zsh"
 
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-history-substring-search"
-type   = "source"
-file   = "zsh-history-substring-search.zsh"
+repo = "zsh-users/zsh-history-substring-search"
+type = "source"
+file = "zsh-history-substring-search.zsh"
 
 [[plugins]]
 source = "github"
-repo   = "olets/zsh-abbr"
-type   = "source"
-file   = "zsh-abbr.zsh"
+repo = "olets/zsh-abbr"
+type = "source"
+file = "zsh-abbr.zsh"
 
 [[plugins]]
 source = "github"
-repo   = "gotokazuki/rat-zsh"
-type   = "fpath"
+repo = "gotokazuki/rat-zsh"
+type = "fpath"
 fpath_dirs = ["contrib/completions/zsh"]
 ```
 
@@ -103,14 +103,14 @@ You can explicitly define which directories should be added to Zsh’s `$fpath`:
 ```toml
 [[plugins]]
 source = "github"
-repo   = "gotokazuki/rat-zsh"
-type   = "fpath"
+repo = "gotokazuki/rat-zsh"
+type = "fpath"
 fpath_dirs = ["contrib/completions/zsh"]
 
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-completions"
-type   = "fpath"
+repo = "zsh-users/zsh-completions"
+type = "fpath"
 fpath_dirs = ["src"]
 ```
 
@@ -130,17 +130,17 @@ In such cases you must specify the file and a unique name so they don’t overwr
 ```toml
 [[plugins]]
 source = "github"
-repo   = "ohmyzsh/ohmyzsh"
-type   = "source"
-file   = "lib/clipboard.zsh"
-name   = "clipboard"
+repo = "ohmyzsh/ohmyzsh"
+type = "source"
+file = "lib/clipboard.zsh"
+name = "clipboard"
 
 [[plugins]]
 source = "github"
-repo   = "ohmyzsh/ohmyzsh"
-type   = "source"
-file   = "plugins/copypath/copypath.plugin.zsh"
-name   = "copypath"
+repo = "ohmyzsh/ohmyzsh"
+type = "source"
+file = "plugins/copypath/copypath.plugin.zsh"
+name = "copypath"
 ```
 
 In this example:
@@ -157,17 +157,18 @@ This ensures reproducible environments and avoids unexpected updates.
 # Pin to a tag
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-autosuggestions"
-rev    = "v0.7.0"
-type   = "source"
-file   = "zsh-autosuggestions.zsh"
+repo = "zsh-users/zsh-autosuggestions"
+rev = "v0.7.0"
+type = "source"
+file = "zsh-autosuggestions.zsh"
 
 # Pin to a branch
 [[plugins]]
 source = "github"
-repo   = "zsh-users/zsh-completions"
-rev    = "develop"
-type   = "fpath"
+repo = "zsh-users/zsh-completions"
+rev = "develop"
+type = "fpath"
+fpath_dirs = ["src"]
 ```
 
 - If rev is not specified, the plugin is synced to the default branch (usually main or master).
