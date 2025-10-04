@@ -8,6 +8,59 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   export PATH="$RZ_BIN:$PATH"
   fpath=("$RZ_PLUGINS"/*(N-/) $fpath)
 
+  # block list (plus any dot-starting directory)
+  typeset -a _rz_block=(
+    docs doc examples example samples sample
+    tests test spec scripts script tools bin
+    assets images img node_modules
+  )
+
+  # return success if the dir has at least one file starting with "_"
+  _rz_looks_like_completion_dir() {
+    typeset dir=$1
+    typeset -a _rz_matches
+    _rz_matches=("$dir"/_*(N.))
+    (( ${#_rz_matches} > 0 ))
+  }
+
+  # print candidate fpath dirs for a resolved plugin target
+  _rz_fpath_dirs_for_target() {
+    typeset target=$1
+    typeset -a _rz_out
+    _rz_out=()
+
+    # plugin root itself?
+    if _rz_looks_like_completion_dir "$target"; then
+      _rz_out+=("$target")
+    fi
+
+    # scan children (exclude dot-dirs and blocked names)
+    for s in "$target"/*(N-/); do
+      typeset name=${s:t}
+      [[ $name == .* ]] && continue
+      if (( ${_rz_block[(Ie)$name]} )); then
+        continue
+      fi
+      if _rz_looks_like_completion_dir "$s"; then
+        _rz_out+=("$s")
+      fi
+    done
+
+    print -rl -- $_rz_out
+  }
+
+  # build final fpath additions from plugins
+  typeset -a _rz_fp_acc
+  _rz_fp_acc=()
+  for p in "$RZ_PLUGINS"/*(N@-/); do
+    typeset target="${p:A}"   # absolute + symlink-resolved
+    _rz_fp_acc+=($(_rz_fpath_dirs_for_target "$target"))
+  done
+  if (( ${#_rz_fp_acc} )); then
+    fpath=($_rz_fp_acc $fpath)
+  fi
+
+  # Initialize completion system (must be after fpath is set)
   autoload -Uz compinit
   if [[ -z "${_RZ_COMPINIT_DONE:-}" ]]; then
     typeset -g _RZ_COMPINIT_DONE=1
