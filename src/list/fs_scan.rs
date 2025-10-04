@@ -34,145 +34,114 @@ pub fn extract_slug_from(path: &Path) -> Option<String> {
     None
 }
 
-/// Find candidate directories for `fpath` lookup associated with a plugin slug.
+/// Resolve the list of directories to include in `fpath`, based on explicit
+/// configuration entries in `config.toml`.
 ///
-/// This function searches under the `plugins_dir` for an entry (directory or
-/// symlink) whose slug (as derived from `extract_slug_from`) matches the given
-/// `slug`. It then inspects that plugin directory to determine which subdirectories
-/// should be added to the Zsh `fpath`.
+/// This function does **not** perform automatic directory scanning.  
+/// Instead, it uses the paths specified under `fpath_dirs` in each plugin’s
+/// configuration, resolving them relative to the plugin’s repository root
+/// (under `~/.rz/repos/<slug>`).
 ///
-/// A directory is considered a valid `fpath` candidate if:
-/// - It contains at least one file starting with an underscore (`_`) — the Zsh
-///   convention for completion function files.
-/// - Or it is a subdirectory of the plugin root that also meets the same condition.
-/// - Directories known to be irrelevant (e.g., `docs`, `tests`, `node_modules`)
-///   are skipped.
+/// # Arguments
 ///
-/// ### Arguments
-/// - `plugins_dir`: Root directory containing plugin entries (usually `~/.rz/plugins`).
-/// - `slug`: The canonical identifier for the plugin (e.g., `"zsh-users__zsh-completions"`).
+/// * `plugins_dir` - The root directory containing plugin symlinks (usually `~/.rz/plugins`).
+/// * `slug` - The canonical plugin identifier (e.g. `"zsh-users__zsh-completions"`).
+/// * `cfg_dirs` - The list of directory paths defined in `config.toml` under `fpath_dirs`.
 ///
-/// ### Returns
-/// - `Ok(Vec<String>)`: A list of directories (absolute paths) that should be
-///   appended to `fpath`, sorted alphabetically.
-/// - `Ok([])`: If no matching slug is found or no valid completion directories exist.
-/// - `Err`: If an I/O error occurs while traversing directories (other than `NotFound`).
+/// # Behavior
 ///
-/// ### Notes
-/// - Only the first matching plugin entry is considered; if multiple exist,
-///   the first is returned.
-/// - Hidden directories (names starting with `.`) and well-known non-source
-///   directories (see `BLOCK` list) are ignored.
-/// - Symbolic links are resolved and canonicalized if possible.
-pub fn fpath_dirs_for_slug(plugins_dir: &Path, slug: &str) -> std::io::Result<Vec<String>> {
-    use std::fs;
-
-    const BLOCK: &[&str] = &[
-        "docs",
-        "doc",
-        "examples",
-        "example",
-        "samples",
-        "sample",
-        "tests",
-        "test",
-        "spec",
-        "scripts",
-        "script",
-        "tools",
-        "bin",
-        "assets",
-        "images",
-        "img",
-        "node_modules",
-    ];
-
-    fn looks_like_completion_dir(dir: &Path) -> bool {
-        if let Ok(rd) = std::fs::read_dir(dir) {
-            for ent in rd.flatten() {
-                let ft = match ent.file_type() {
-                    Ok(t) => t,
-                    Err(_) => continue,
-                };
-                if ft.is_file()
-                    && let Some(name) = ent.file_name().to_str()
-                    && name.starts_with('_')
-                {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    let rd = match fs::read_dir(plugins_dir) {
-        Ok(rd) => rd,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
-        Err(e) => return Err(e),
-    };
-
-    for ent in rd {
-        let ent = ent?;
-        let ft = ent.file_type()?;
+/// - The function first resolves the **plugin root directory** by finding a symlink or folder
+///   under `plugins_dir` that points to the repository corresponding to the given `slug`.
+/// - Each entry in `cfg_dirs` is interpreted as:
+///   - An **absolute path** (if it starts with `/`), used as-is.
+///   - A **relative path**, resolved against the plugin root.
+/// - Only existing directories are included in the final output; non-existent entries are ignored.
+/// - Paths are canonicalized (via `std::fs::canonicalize`) when possible.
+/// - The returned paths are **relative to the plugin root** for readability, e.g.:
+///   ```text
+///   contrib/completions/zsh
+///   src
+///   ```
+///
+/// # Returns
+///
+/// - `Ok(Vec<String>)`: A sorted, deduplicated list of relative directory paths to include in `fpath`.
+/// - `Ok([])`: If no matching plugin is found or none of the configured directories exist.
+/// - `Err`: If an I/O error occurs while reading directories (except for `NotFound`).
+///
+/// # Notes
+///
+/// - This function intentionally skips any automatic completion detection
+///   logic (e.g., scanning for `_foo` files).
+/// - It is meant to provide **predictable and explicit fpath resolution**
+///   consistent with user-defined configuration.
+pub fn fpath_dirs_from_config(
+    plugins_dir: &Path,
+    slug: &str,
+    cfg_dirs: &[String],
+) -> std::io::Result<Vec<String>> {
+    let mut plugin_root: Option<std::path::PathBuf> = None;
+    for ent in std::fs::read_dir(plugins_dir)? {
+        let ent = match ent {
+            Ok(x) => x,
+            Err(_) => continue,
+        };
+        let ft = match ent.file_type() {
+            Ok(x) => x,
+            Err(_) => continue,
+        };
         if !(ft.is_symlink() || ft.is_dir()) {
             continue;
         }
-        let path = ent.path();
-
+        let p = ent.path();
         let target = if ft.is_symlink() {
-            match fs::read_link(&path) {
+            match std::fs::read_link(&p) {
                 Ok(link) => {
                     let abs = if link.is_absolute() {
                         link
                     } else {
-                        path.parent().unwrap_or(Path::new(".")).join(link)
+                        p.parent().unwrap_or(Path::new(".")).join(link)
                     };
-                    fs::canonicalize(&abs).unwrap_or(abs)
+                    std::fs::canonicalize(&abs).unwrap_or(abs)
                 }
-                Err(_) => path.clone(),
+                Err(_) => p.clone(),
             }
         } else {
-            path.clone()
+            p.clone()
         };
-
-        if extract_slug_from(&target).as_deref() != Some(slug) {
-            continue;
+        if super::fs_scan::extract_slug_from(&target).as_deref() == Some(slug) {
+            plugin_root = Some(target);
+            break;
         }
-
-        let mut dirs = Vec::new();
-
-        if looks_like_completion_dir(&target) {
-            dirs.push(target.clone());
-        }
-
-        if let Ok(sub) = fs::read_dir(&target) {
-            for s in sub.flatten() {
-                let name_os = s.file_name();
-                let name = match name_os.to_str() {
-                    Some(n) => n,
-                    None => continue,
-                };
-                if name.starts_with('.') || BLOCK.contains(&name) {
-                    continue;
-                }
-                if s.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    let cand = s.path();
-                    if looks_like_completion_dir(&cand) {
-                        dirs.push(cand);
-                    }
-                }
-            }
-        }
-
-        let mut out: Vec<String> = dirs
-            .into_iter()
-            .map(|p| p.to_string_lossy().into_owned())
-            .collect();
-        out.sort();
-        return Ok(out);
     }
+    let root = match plugin_root {
+        Some(r) => r,
+        None => return Ok(vec![]),
+    };
 
-    Ok(vec![])
+    let mut out = Vec::new();
+    for d in cfg_dirs {
+        let cand = {
+            let pd = Path::new(d);
+            if pd.is_absolute() {
+                pd.to_path_buf()
+            } else {
+                root.join(pd)
+            }
+        };
+        if cand.is_dir() {
+            let canon = std::fs::canonicalize(&cand).unwrap_or(cand);
+            let display = canon
+                .strip_prefix(&root)
+                .unwrap_or(&canon)
+                .to_string_lossy()
+                .into_owned();
+            out.push(display);
+        }
+    }
+    out.sort();
+    out.dedup();
+    Ok(out)
 }
 
 /// Format a list of `fpath` directories into a display-friendly string.
@@ -264,7 +233,7 @@ pub fn collect_plugins(
             path.clone()
         };
 
-        if let Some(slug) = extract_slug(&target) {
+        if let Some(slug) = extract_slug_from(&target) {
             let display = slug.replace("__", "/");
             let item = PluginEntry {
                 slug: slug.clone(),
@@ -291,32 +260,6 @@ pub fn collect_plugins(
     Ok((normal, tail))
 }
 
-/// Try to extract a plugin "slug" from the given path.
-///
-/// A slug is defined as the component immediately following a `repos`
-/// directory in the path (e.g., `.../repos/<slug>/...`).
-///
-/// Example:
-/// - `/home/user/.rz/repos/zsh-users__zsh-autosuggestions/...`
-///   → returns `"zsh-users__zsh-autosuggestions"`.
-///
-/// # Arguments
-/// - `target`: Path to examine.
-///
-/// # Returns
-/// `Some(slug)` if found, otherwise `None`.
-fn extract_slug(target: &Path) -> Option<String> {
-    let mut comps = target.components().peekable();
-    while let Some(c) = comps.next() {
-        if matches!(c, Component::Normal(x) if x == OsStr::new("repos"))
-            && let Some(Component::Normal(next)) = comps.next()
-        {
-            return Some(next.to_string_lossy().into_owned());
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,14 +281,14 @@ mod tests {
             .join("owner__repo")
             .join("path")
             .join("file.zsh");
-        let got = extract_slug(&p);
+        let got = extract_slug_from(&p);
         assert_eq!(got.as_deref(), Some("owner__repo"));
     }
 
     #[test]
     fn extract_slug_none_when_no_repos_component() {
         let p = Path::new("/some/where/owner__repo/file.zsh");
-        assert!(extract_slug(p).is_none());
+        assert!(extract_slug_from(p).is_none());
     }
 
     #[test]
@@ -411,114 +354,119 @@ mod tests {
         assert!(normal.is_empty());
         assert!(tail.is_empty());
     }
-}
 
-#[test]
-fn extract_slug_none_when_repos_is_last_segment() {
-    let p = Path::new("/home/u/.rz/repos");
-    assert!(extract_slug_from(p).is_none());
-}
+    #[test]
+    fn fpath_from_config_returns_only_existing_configured_dirs() {
+        use std::os::unix::fs as unix_fs;
 
-#[test]
-fn extract_slug_uses_first_repos_occurrence() {
-    let p = Path::new("/a/repos/first/x/repos/second/y");
-    assert_eq!(extract_slug_from(p).as_deref(), Some("first"));
-}
+        let td = tempfile::tempdir().unwrap();
+        let plugins = td.path().join("plugins");
+        let repos = td.path().join("repos");
+        fs::create_dir_all(&plugins).unwrap();
 
-#[cfg(unix)]
-#[test]
-fn extract_slug_handles_non_utf8() {
-    use std::os::unix::ffi::OsStrExt;
-    let mut path = std::path::PathBuf::from("/home/u/.rz/repos");
-    path.push(std::ffi::OsStr::from_bytes(b"zsh-users__\xFF\xFE"));
-    path.push("file.zsh");
-    assert!(extract_slug_from(&path).is_some());
-}
+        let slug = "owner__repo";
+        let repo_root = repos.join(slug);
+        fs::create_dir_all(&repo_root).unwrap();
 
-#[test]
-fn format_fpath_dirs_formats_variants() {
-    assert_eq!(format_fpath_dirs(&[]), "");
-    assert_eq!(format_fpath_dirs(&[String::from("/a")]), "/a");
-    assert_eq!(
-        format_fpath_dirs(&[String::from("/a"), String::from("/b")]),
-        "{/a, /b}"
-    );
-}
+        let d1 = repo_root.join("src");
+        let d2 = repo_root.join("contrib").join("completions").join("zsh");
+        fs::create_dir_all(&d1).unwrap();
+        fs::create_dir_all(d2.parent().unwrap()).unwrap();
+        fs::create_dir_all(&d2).unwrap();
 
-#[test]
-fn fpath_dirs_respects_block_and_detects_completion_dirs() {
-    use std::os::unix::fs as unix_fs;
-    let td = tempfile::tempdir().unwrap();
-    let plugins = td.path();
+        unix_fs::symlink(&repo_root, plugins.join("link-to-repo")).unwrap();
 
-    let slug = "z__comp";
-    let repo_root = td.path().join("..").join("repos").join(slug);
-    std::fs::create_dir_all(&repo_root).unwrap();
+        let cfg_dirs = vec![
+            ".".to_string(),
+            "src".to_string(),
+            "contrib/completions/zsh".to_string(),
+            "nope".to_string(),
+        ];
 
-    std::fs::write(repo_root.join("_rootcomp"), "").unwrap();
+        let mut got = fpath_dirs_from_config(&plugins, slug, &cfg_dirs).unwrap();
+        got.sort();
 
-    let d1 = repo_root.join("src");
-    std::fs::create_dir_all(&d1).unwrap();
-    std::fs::write(d1.join("_bar"), "").unwrap();
+        let expect = vec![
+            "".to_string(),
+            "contrib/completions/zsh".to_string(),
+            "src".to_string(),
+        ];
 
-    let d2 = repo_root.join("docs");
-    std::fs::create_dir_all(&d2).unwrap();
-    std::fs::write(d2.join("_ignored"), "").unwrap();
+        assert_eq!(got, expect);
+    }
 
-    std::fs::create_dir_all(plugins).unwrap();
-    unix_fs::symlink(&repo_root, plugins.join("link-to-repo")).unwrap();
+    #[test]
+    fn fpath_from_config_returns_empty_for_unknown_slug() {
+        let td = tempfile::tempdir().unwrap();
+        let got = fpath_dirs_from_config(td.path(), "no_such", &["src".into()]).unwrap();
+        assert!(got.is_empty());
+    }
 
-    let mut got = fpath_dirs_for_slug(plugins, slug).unwrap();
-    got.sort();
+    #[test]
+    fn extract_slug_none_when_repos_is_last_segment() {
+        let p = Path::new("/home/u/.rz/repos");
+        assert!(extract_slug_from(p).is_none());
+    }
 
-    let repo_root_c = std::fs::canonicalize(&repo_root).unwrap();
-    let d1_c = std::fs::canonicalize(&d1).unwrap();
-    let d2_c = std::fs::canonicalize(&d2).unwrap();
+    #[test]
+    fn extract_slug_uses_first_repos_occurrence() {
+        let p = Path::new("/a/repos/first/x/repos/second/y");
+        assert_eq!(extract_slug_from(p).as_deref(), Some("first"));
+    }
 
-    assert!(got.iter().any(|p| Path::new(p) == repo_root_c));
-    assert!(got.iter().any(|p| Path::new(p) == d1_c));
-    assert!(!got.iter().any(|p| Path::new(p) == d2_c));
-}
+    #[cfg(unix)]
+    #[test]
+    fn extract_slug_handles_non_utf8() {
+        use std::os::unix::ffi::OsStrExt;
+        let mut path = std::path::PathBuf::from("/home/u/.rz/repos");
+        path.push(std::ffi::OsStr::from_bytes(b"zsh-users__\xFF\xFE"));
+        path.push("file.zsh");
+        assert!(extract_slug_from(&path).is_some());
+    }
 
-#[test]
-fn fpath_dirs_returns_empty_for_unknown_slug() {
-    let td = tempfile::tempdir().unwrap();
-    let got = fpath_dirs_for_slug(td.path(), "no_such").unwrap();
-    assert!(got.is_empty());
-}
+    #[test]
+    fn format_fpath_dirs_formats_variants() {
+        assert_eq!(format_fpath_dirs(&[]), "");
+        assert_eq!(format_fpath_dirs(&[String::from("/a")]), "/a");
+        assert_eq!(
+            format_fpath_dirs(&[String::from("/a"), String::from("/b")]),
+            "{/a, /b}"
+        );
+    }
 
-#[cfg(unix)]
-#[test]
-fn collect_plugins_classifies_and_skips_broken_symlink() {
-    use std::os::unix::fs as unix_fs;
+    #[cfg(unix)]
+    #[test]
+    fn collect_plugins_classifies_and_skips_broken_symlink() {
+        use std::os::unix::fs as unix_fs;
 
-    let td = tempfile::tempdir().unwrap();
-    let base = td.path();
-    let plugins = base.join("plugins");
-    let repos = base.join("repos");
-    std::fs::create_dir_all(&plugins).unwrap();
-    std::fs::create_dir_all(&repos).unwrap();
+        let td = tempfile::tempdir().unwrap();
+        let base = td.path();
+        let plugins = base.join("plugins");
+        let repos = base.join("repos");
+        std::fs::create_dir_all(&plugins).unwrap();
+        std::fs::create_dir_all(&repos).unwrap();
 
-    let slug_norm = "owner__norm";
-    let slug_tail = "owner__tail";
-    let f_norm = repos.join(slug_norm).join("a.zsh");
-    let f_tail = repos.join(slug_tail).join("b.zsh");
-    std::fs::create_dir_all(f_norm.parent().unwrap()).unwrap();
-    std::fs::create_dir_all(f_tail.parent().unwrap()).unwrap();
-    std::fs::write(&f_norm, "").unwrap();
-    std::fs::write(&f_tail, "").unwrap();
+        let slug_norm = "owner__norm";
+        let slug_tail = "owner__tail";
+        let f_norm = repos.join(slug_norm).join("a.zsh");
+        let f_tail = repos.join(slug_tail).join("b.zsh");
+        std::fs::create_dir_all(f_norm.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(f_tail.parent().unwrap()).unwrap();
+        std::fs::write(&f_norm, "").unwrap();
+        std::fs::write(&f_tail, "").unwrap();
 
-    unix_fs::symlink(&f_norm, plugins.join("norm")).unwrap();
-    unix_fs::symlink(&f_tail, plugins.join("tail")).unwrap();
+        unix_fs::symlink(&f_norm, plugins.join("norm")).unwrap();
+        unix_fs::symlink(&f_tail, plugins.join("tail")).unwrap();
 
-    unix_fs::symlink(plugins.join("nope"), plugins.join("broken")).unwrap();
+        unix_fs::symlink(plugins.join("nope"), plugins.join("broken")).unwrap();
 
-    let tails = vec![slug_tail.to_string()];
-    let (normal, tail) = collect_plugins(&plugins, &tails).unwrap();
+        let tails = vec![slug_tail.to_string()];
+        let (normal, tail) = collect_plugins(&plugins, &tails).unwrap();
 
-    let norm_names: Vec<_> = normal.into_iter().map(|e| e.display).collect();
-    assert!(norm_names.contains(&"owner/norm".to_string()));
+        let norm_names: Vec<_> = normal.into_iter().map(|e| e.display).collect();
+        assert!(norm_names.contains(&"owner/norm".to_string()));
 
-    let tail_names: Vec<_> = tail.into_iter().map(|e| e.display).collect();
-    assert_eq!(tail_names, vec!["owner/tail".to_string()]);
+        let tail_names: Vec<_> = tail.into_iter().map(|e| e.display).collect();
+        assert_eq!(tail_names, vec!["owner/tail".to_string()]);
+    }
 }

@@ -1,0 +1,57 @@
+#compdef rz
+#
+# zsh completion for `rz` (rat-zsh)
+
+_rz() {
+  local -a subcmds common_opts
+  local curcontext="$curcontext" state line
+
+  subcmds=(
+    'init:Print init snippet for .zshrc'
+    'sync:Clone/update plugins as defined in config.toml'
+    'upgrade:Upgrade rz to the latest release'
+    'list:Show plugins in effective load order'
+    'home:Print rz home directory'
+  )
+
+  common_opts=(
+    '(-h --help)'{-h,--help}'[Show help]'
+    '(-V --version)'{-V,--version}'[Show version]'
+  )
+
+  _arguments -C \
+    $common_opts \
+    '1:subcommand:->subcmd' \
+    '*::args:->args' && return 0
+
+  case $state in
+    subcmd)
+      _describe -t commands 'rz command' subcmds
+      return
+      ;;
+    args)
+      case $words[1] in
+        init)
+          _message 'no more arguments'
+          ;;
+        sync)
+          _message 'no more arguments'
+          ;;
+        upgrade)
+          _message 'no more arguments'
+          ;;
+        list)
+          _message 'no more arguments'
+          ;;
+        home)
+          _message 'no more arguments'
+          ;;
+        *)
+          _message 'unknown subcommand'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_rz "$@"

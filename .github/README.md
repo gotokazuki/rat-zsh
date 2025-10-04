@@ -13,7 +13,8 @@ Rat Zsh
 <!-- markdownlint-enable MD013 -->
 
 **Rat Zsh** is a minimal and lightweight **plugin manager for zsh**.  
-Built in Rust for speed and simplicity.
+Built in Rust for speed and simplicity.  
+Designed to be minimal and reproducible — no magic, no heavy frameworks.
 
 - 🚀 Installation with a single `curl` line
 - ⚙️ Configuration file in TOML (`$(rz home)/config.toml`)
@@ -24,7 +25,7 @@ Built in Rust for speed and simplicity.
 
 ## Installation
 
-```bash
+```zsh
 curl -fsSL https://raw.githubusercontent.com/gotokazuki/rat-zsh/main/install.zsh | zsh
 ```
 
@@ -55,6 +56,7 @@ file   = "zsh-autosuggestions.zsh"
 source = "github"
 repo   = "zsh-users/zsh-completions"
 type   = "fpath"
+fpath_dirs = ["src"]
 
 [[plugins]]
 source = "github"
@@ -73,22 +75,56 @@ source = "github"
 repo   = "olets/zsh-abbr"
 type   = "source"
 file   = "zsh-abbr.zsh"
+
+[[plugins]]
+source = "github"
+repo   = "gotokazuki/rat-zsh"
+type   = "fpath"
+fpath_dirs = ["contrib/completions/zsh"]
 ```
 
 ### Supported keys
 
-| Key    | Description                                     |
-|--------|-------------------------------------------------|
-| source | Plugin source (currently only `github` is supported) |
-| repo   | Repository in `owner/repo` format               |
-| rev    | Optional. Pin to a tag or branch                |
-| file   | Optional. Relative path to the file to `source` |
-| type   | `"source"` or `"fpath"` (default: `"source"`)   |
-| name   | Optional. Alias name for the plugin             |
+| Key          | Description |
+|--------------|-------------|
+| source       | Plugin source (currently only `github` is supported) |
+| repo         | Repository in `owner/repo` format |
+| rev          | Optional. Pin to a tag or branch |
+| file         | Optional. Relative path to the file to `source` |
+| type         | `"source"` or `"fpath"` (default: `"source"`) |
+| name         | Optional. Alias name for the plugin |
+| fpath_dirs   | Optional. List of directories (relative to the repo root) to include in `$fpath` when `type = "fpath"` |
+
+### Example: fpath_dirs usage
+
+Some plugins (like `zsh-completions` or `rat-zsh` itself) include completion functions in nested directories.  
+You can explicitly define which directories should be added to Zsh’s `$fpath`:
+
+```toml
+[[plugins]]
+source = "github"
+repo   = "gotokazuki/rat-zsh"
+type   = "fpath"
+fpath_dirs = ["contrib/completions/zsh"]
+
+[[plugins]]
+source = "github"
+repo   = "zsh-users/zsh-completions"
+type   = "fpath"
+fpath_dirs = ["src"]
+```
+
+When you run `rz list`, these appear like:
+
+```bash
+fpath
+- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh]
+- zsh-users/zsh-completions (github) [fpath: src]
+```
 
 ### Multiple plugins from a single repository
 
-Some repositories provide multiple plugins (e.g. ohmyzsh/ohmyzsh).
+Some repositories provide multiple plugins (e.g. ohmyzsh/ohmyzsh).  
 In such cases you must specify the file and a unique name so they don’t overwrite each other:
 
 ```toml
@@ -114,7 +150,7 @@ In this example:
 
 ### Pinning to a specific tag or branch
 
-You can use rev to pin a plugin to a specific version (tag or branch).  
+You can use `rev` to pin a plugin to a specific version (tag or branch).  
 This ensures reproducible environments and avoids unexpected updates.
 
 ```toml
@@ -167,7 +203,8 @@ Source order
 - zsh-users/zsh-syntax-highlighting (github) [source]
 
 fpath
-- zsh-users/zsh-completions (github) [fpath: /Users/name/.rz/repos/zsh-users__zsh-completions/src]
+- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh]
+- zsh-users/zsh-completions (github) [fpath: src]
 ```
 
 ## Commands

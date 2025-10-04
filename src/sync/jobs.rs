@@ -101,6 +101,7 @@ mod tests {
                     file: Some("zsh-autosuggestions.zsh".into()),
                     r#type: None,
                     name: None,
+                    fpath_dirs: Vec::new(),
                 },
                 Plugin {
                     source: "github".into(),
@@ -109,6 +110,7 @@ mod tests {
                     file: None,
                     r#type: Some("fpath".into()),
                     name: Some("comps".into()),
+                    fpath_dirs: Vec::new(),
                 },
                 Plugin {
                     source: "github".into(),
@@ -117,6 +119,7 @@ mod tests {
                     file: Some("zsh-abbr.zsh".into()),
                     r#type: None,
                     name: None,
+                    fpath_dirs: Vec::new(),
                 },
             ],
         };
@@ -183,6 +186,7 @@ mod tests {
                     file: None,
                     r#type: None,
                     name: None,
+                    fpath_dirs: Vec::new(),
                 },
                 Plugin {
                     source: "github".into(),
@@ -191,6 +195,7 @@ mod tests {
                     file: None,
                     r#type: None,
                     name: None,
+                    fpath_dirs: Vec::new(),
                 },
             ],
         };
