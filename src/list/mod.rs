@@ -7,32 +7,48 @@ use std::collections::HashMap;
 mod fs_scan;
 mod order;
 
-/// CLI command: print the list of plugins in their effective load order.
+/// Print plugins in their effective load order, split by **source** and **fpath** roles.
 ///
-/// This command combines information from both the configuration file
-/// (`config.toml`) and the on-disk plugin directory:
+/// This command merges information from:
+/// - The on-disk `plugins/` directory (actual load order and presence)
+/// - `config.toml` (metadata: `name`, `source`, `type`)
 ///
-/// - The **load order** is determined by scanning the `plugins/` directory
-///   and applying the ordering rules (normal plugins sorted by display name,
-///   followed by "tail" plugins such as `zsh-autosuggestions`).
-/// - For each plugin, if configuration metadata is available, the line
-///   includes the configured `name`, `source` (e.g., `"github"`), and type
-///   (`"source"`, `"fpath"`, etc.).
-/// - Plugins without metadata (e.g., plain files or broken symlinks in
-///   `plugins/`) are still listed, but without extra fields.
+/// ### Output format
+/// The output is split into two sections:
 ///
-/// Example output:
+/// 1. **`Source order`**
+///    - Shows plugins whose `type` is **not** `fpath`.
+///    - Order is computed from the `plugins/` directory:
+///      - “Normal” plugins sorted alphabetically by display name
+///      - “Tail” plugins (e.g. `zsh-autosuggestions`, `zsh-syntax-highlighting`) appended last in a fixed order
+///    - Each line includes the display name (or configured `name`), the `source` (e.g. `github`), and the literal tag `[source]`.
+///
+/// 2. **`fpath`**
+///    - Shows plugins whose `type` **is** `fpath`.
+///    - For each plugin, candidate completion directories under its repository are discovered
+///      (ignoring dot-directories like `.git`, `.github`, etc. and obvious non-completion folders).
+///    - If one directory is found, it is shown after `fpath:` as an absolute path.
+///      If multiple are found, they are shown as `{dir1, dir2, ...}` to indicate search order.
+///      If none are found, only `[fpath]` is printed without a path.
+///
+/// ### Example
 /// ```text
+/// Source order
 /// - olets/zsh-abbr (github) [source]
-/// - zsh-users/zsh-completions (github) [fpath]
 /// - zsh-users/zsh-history-substring-search (github) [source]
 /// - zsh-users/zsh-autosuggestions (github) [source]
 /// - zsh-users/zsh-syntax-highlighting (github) [source]
+///
+/// fpath
+/// - zsh-users/zsh-completions (github) [fpath: /home/user/.rz/plugins/zsh-users__zsh-completions/src]
 /// ```
 ///
+/// Notes:
+/// - Entries lacking config metadata are still listed but without extra fields.
+/// - “Tail” membership is determined by a fixed list and ensures those plugins load last.
+///
 /// # Errors
-/// Returns an error if the configuration cannot be loaded or if plugin
-/// directory scanning fails.
+/// Returns an error if configuration loading fails or if plugin directory scanning fails.
 pub fn cmd_list() -> Result<()> {
     let cfg = load_config()?;
     let mut meta: HashMap<String, (String, String, Option<String>)> = HashMap::new();
@@ -60,20 +76,24 @@ pub fn cmd_list() -> Result<()> {
     }
 
     let p = paths()?;
-    let fpaths = fs_scan::collect_fpath_dirs(&p.plugins)?;
 
     println!("\nfpath");
-    for f in &fpaths {
-        if let Some((source, ty, name)) = meta.get(&f.slug).cloned() {
-            if ty == "fpath" {
-                let shown = name.unwrap_or_else(|| f.display.clone());
-                println!("- {} ({}) [fpath: {}]", shown, source, f.dir.display());
-            } else {
-                let shown = name.unwrap_or_else(|| f.display.clone());
-                println!("- {} ({}) [dir: {}]", shown, source, f.dir.display());
+    for e in &ordered {
+        if e.slug.is_empty() {
+            continue;
+        }
+        if let Some((source, ty, name)) = meta.get(&e.slug).cloned() {
+            if ty != "fpath" {
+                continue;
             }
-        } else {
-            println!("- {} [fpath: {}]", f.display, f.dir.display());
+            let shown = name.unwrap_or_else(|| e.display.clone());
+            let dirs = fs_scan::fpath_dirs_for_slug(&p.plugins, &e.slug).unwrap_or_default();
+            let suffix = fs_scan::format_fpath_dirs(&dirs);
+            if suffix.is_empty() {
+                println!("- {} ({}) [fpath]", shown, source);
+            } else {
+                println!("- {} ({}) [fpath: {}]", shown, source, suffix);
+            }
         }
     }
 
