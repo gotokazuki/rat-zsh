@@ -81,6 +81,7 @@ file   = "zsh-autosuggestions.zsh"
 source = "github"
 repo   = "zsh-users/zsh-completions"
 type   = "fpath"
+fpath_dirs = ["src"]
 
 [[plugins]]
 source = "github"
@@ -99,6 +100,12 @@ source = "github"
 repo   = "olets/zsh-abbr"
 type   = "source"
 file   = "zsh-abbr.zsh"
+
+[[plugins]]
+source = "github"
+repo   = "gotokazuki/rat-zsh"
+type   = "fpath"
+fpath_dirs = ["contrib/completions/zsh"]
 EOF
   _rz_info "Wrote sample config: $CONFIG"
 fi
