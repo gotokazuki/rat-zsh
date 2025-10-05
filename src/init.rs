@@ -69,8 +69,8 @@ pub fn cmd_init() -> Result<()> {
         )
     };
 
-    // Render final init.zsh (template with {FPATh_SNIPPET} placeholder)
-    let script = INIT_ZSH_TEMPLATE.replace("{FPATh_SNIPPET}", &fpath_snippet);
+    // Render final init.zsh (template with {fpath_snippet} placeholder)
+    let script = INIT_ZSH_TEMPLATE.replace("{fpath_snippet}", &fpath_snippet);
 
     io::stdout().write_all(script.as_bytes())?;
     Ok(())
@@ -78,7 +78,7 @@ pub fn cmd_init() -> Result<()> {
 
 /// Static init.zsh template.
 /// NOTE:
-/// - {FPATh_SNIPPET} will be replaced at runtime with computed fpath lines.
+/// - {fpath_snippet} will be replaced at runtime with computed fpath lines.
 /// - Avoid `local` in this script (it is eval'ed into user's interactive shell).
 const INIT_ZSH_TEMPLATE: &str = r#"# rat-zsh init
 if [[ -z "${_RZ_INIT:-}" ]]; then
@@ -90,7 +90,7 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   # Prepend rz bin to PATH
   export PATH="$RZ_BIN:$PATH"
 
-{FPATh_SNIPPET}
+{fpath_snippet}
   # Initialize completion system (must be after fpath is set)
   autoload -Uz compinit
   if [[ -z "${_RZ_COMPINIT_DONE:-}" ]]; then
@@ -135,7 +135,7 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   _rz_tail=()
 
   # Classify plugin entries under $RZ_PLUGINS
-  typeset p target slug
+  typeset p target slug s
   for p in "$RZ_PLUGINS"/*(N@-); do
     target="${p:A}"
     slug=""
