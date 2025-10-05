@@ -131,8 +131,8 @@ When you run `rz list`, these appear like:
 
 ```bash
 fpath
-- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh]
-- zsh-users/zsh-completions (github) [fpath: src]
+- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh] @main (4243bb3)
+- zsh-users/zsh-completions (github) [fpath: src] @master (173a14c)
 ```
 
 ### Multiple plugins from a single repository
@@ -211,14 +211,14 @@ Example output:
 
 ```zsh
 Source order
-- olets/zsh-abbr (github) [source]
-- zsh-users/zsh-history-substring-search (github) [source]
-- zsh-users/zsh-autosuggestions (github) [source]
-- zsh-users/zsh-syntax-highlighting (github) [source]
+- olets/zsh-abbr (github) [source] @main (13b34cd)
+- zsh-users/zsh-history-substring-search (github) [source] @master (87ce96b)
+- zsh-users/zsh-autosuggestions (github) [source] @master (85919cd)
+- zsh-users/zsh-syntax-highlighting (github) [source] @master (5eb677b)
 
 fpath
-- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh]
-- zsh-users/zsh-completions (github) [fpath: src]
+- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh] @main (4243bb3)
+- zsh-users/zsh-completions (github) [fpath: src] @master (173a14c)
 ```
 
 ## Commands
