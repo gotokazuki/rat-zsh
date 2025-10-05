@@ -30,6 +30,7 @@ hex = "0.4"
 flate2 = "1"
 tar = "0.4"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
+colored = "3"
 
 [dev-dependencies]
 serial_test = "3"
