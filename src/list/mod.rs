@@ -1,8 +1,11 @@
 use crate::config::load_config;
 use crate::paths::paths;
 use anyhow::Result;
+use colored::Colorize;
 use order::{PluginEntry, resolve_order};
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 mod fs_scan;
 mod order;
@@ -13,6 +16,184 @@ struct Meta {
     ty: String,
     name: Option<String>,
     fpath_dirs: Vec<String>,
+    rev: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct GitRev {
+    head_short: String,
+    head_ref: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RevKind {
+    Branch { name: String },
+    Tag { name: String },
+    Detached,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RevParts {
+    pub role_label: &'static str,
+    pub kind: Option<RevKind>,
+    pub commit_short: Option<String>,
+    pub fpath_dirs: Vec<String>,
+}
+
+fn resolve_git_dir(repo_root: &Path) -> Option<PathBuf> {
+    let dotgit = repo_root.join(".git");
+    if dotgit.is_dir() {
+        return Some(dotgit);
+    }
+    if dotgit.is_file()
+        && let Ok(s) = fs::read_to_string(&dotgit)
+        && let Some(rest) = s.strip_prefix("gitdir:")
+    {
+        let raw = rest.trim();
+        let p = Path::new(raw);
+        let abs = if p.is_absolute() {
+            p.to_path_buf()
+        } else {
+            repo_root.join(p)
+        };
+        return Some(abs);
+    }
+    None
+}
+
+fn read_to_string_lossy(p: &Path) -> Option<String> {
+    fs::read_to_string(p).ok().map(|mut s| {
+        if let Some(pos) = s.find('\n') {
+            s.truncate(pos);
+        }
+        s.trim().to_string()
+    })
+}
+
+fn resolve_ref_sha(git_dir: &Path, refname: &str) -> Option<String> {
+    let ref_path = git_dir.join(refname);
+    if let Some(s) = read_to_string_lossy(&ref_path)
+        && s.len() >= 40
+    {
+        return Some(s);
+    }
+    let packed = git_dir.join("packed-refs");
+    if let Ok(content) = fs::read_to_string(packed) {
+        for line in content.lines() {
+            if line.starts_with('#') || line.is_empty() {
+                continue;
+            }
+            if let Some((sha, name)) = line.split_once(' ')
+                && name.trim() == refname
+                && sha.len() >= 40
+            {
+                return Some(sha.trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+fn short7(sha: &str) -> String {
+    sha.chars().take(7).collect()
+}
+
+fn git_rev_for_repo(repo_root: &Path) -> Option<GitRev> {
+    let git_dir = resolve_git_dir(repo_root)?;
+    let head = read_to_string_lossy(&git_dir.join("HEAD"))?;
+
+    if let Some(refname) = head.strip_prefix("ref: ").map(|s| s.to_string())
+        && let Some(sha) = resolve_ref_sha(&git_dir, &refname)
+    {
+        return Some(GitRev {
+            head_short: short7(&sha),
+            head_ref: Some(refname),
+        });
+    }
+
+    if head.len() >= 7 {
+        let sha = head;
+        return Some(GitRev {
+            head_short: short7(&sha),
+            head_ref: None,
+        });
+    }
+
+    None
+}
+
+fn rev_parts_for_repo(role: &'static str, cfg_rev: Option<&String>, repo_root: &Path) -> RevParts {
+    if let Some(info) = git_rev_for_repo(repo_root) {
+        if let Some(r) = cfg_rev {
+            return RevParts {
+                role_label: role,
+                kind: Some(RevKind::Branch { name: r.clone() }),
+                commit_short: Some(info.head_short),
+                ..Default::default()
+            };
+        }
+        if let Some(rf) = info.head_ref {
+            if let Some(name) = rf.strip_prefix("refs/heads/") {
+                return RevParts {
+                    role_label: role,
+                    kind: Some(RevKind::Branch {
+                        name: name.to_string(),
+                    }),
+                    commit_short: Some(info.head_short),
+                    ..Default::default()
+                };
+            }
+            if let Some(name) = rf.strip_prefix("refs/tags/") {
+                return RevParts {
+                    role_label: role,
+                    kind: Some(RevKind::Tag {
+                        name: name.to_string(),
+                    }),
+                    commit_short: Some(info.head_short),
+                    ..Default::default()
+                };
+            }
+            return RevParts {
+                role_label: role,
+                kind: Some(RevKind::Detached),
+                commit_short: Some(info.head_short),
+                ..Default::default()
+            };
+        }
+        return RevParts {
+            role_label: role,
+            kind: Some(RevKind::Detached),
+            commit_short: Some(info.head_short),
+            ..Default::default()
+        };
+    }
+
+    RevParts {
+        role_label: role,
+        kind: cfg_rev.cloned().map(|r| RevKind::Branch { name: r }),
+        commit_short: None,
+        ..Default::default()
+    }
+}
+
+fn fmt_kind(kind: &Option<RevKind>) -> String {
+    match kind {
+        Some(RevKind::Branch { name }) => format!("@{}", name).green().to_string(),
+        Some(RevKind::Tag { name }) => format!("@{}", name).yellow().to_string(),
+        Some(RevKind::Detached) => "@detached".red().to_string(),
+        None => "".to_string(),
+    }
+}
+
+fn fmt_commit(commit_short: &Option<String>) -> String {
+    commit_short
+        .as_ref()
+        .map(|s| format!("({})", s).bright_black().to_string())
+        .unwrap_or_default()
+}
+
+fn fmt_role(role: &str) -> String {
+    format!("[{}]", role).bright_black().to_string()
 }
 
 /// Print plugins in their effective load order, split by **source** and **fpath** roles.
@@ -69,12 +250,15 @@ pub fn cmd_list() -> Result<()> {
                 ty: pl.r#type.as_deref().unwrap_or("source").to_string(),
                 name: pl.name.clone(),
                 fpath_dirs: pl.fpath_dirs.clone(),
+                rev: pl.rev.clone(),
             },
         );
     }
 
-    println!("Source order");
+    let p = paths()?;
     let ordered: Vec<PluginEntry> = resolve_order()?;
+
+    println!("{}", "Source order".bold());
 
     for e in &ordered {
         if let Some(m) = meta.get(&e.slug).cloned() {
@@ -82,15 +266,36 @@ pub fn cmd_list() -> Result<()> {
                 continue;
             }
             let shown = m.name.unwrap_or_else(|| e.display.clone());
-            println!("- {} ({}) [source]", shown, m.source);
+            let repo_root = p.repos.join(&e.slug);
+            let parts = rev_parts_for_repo("source", m.rev.as_ref(), &repo_root);
+
+            let kind = fmt_kind(&parts.kind);
+            let commit = fmt_commit(&parts.commit_short);
+            let role = fmt_role(parts.role_label);
+
+            println!(
+                "{} {} ({}) {}{}{}",
+                "-".dimmed(),
+                shown.bold().white(),
+                m.source.cyan(),
+                role,
+                if kind.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(" {}", kind)
+                },
+                if commit.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(" {}", commit)
+                },
+            );
         } else {
             println!("- {}", e.display);
         }
     }
 
-    let p = paths()?;
-
-    println!("\nfpath");
+    println!("\n{}", "fpath".bold());
     for e in &ordered {
         if e.slug.is_empty() {
             continue;
@@ -101,12 +306,37 @@ pub fn cmd_list() -> Result<()> {
             }
             let shown = m.name.unwrap_or_else(|| e.display.clone());
             let dirs = fs_scan::fpath_dirs_from_config(&p.plugins, &e.slug, &m.fpath_dirs)?;
-            let suffix = fs_scan::format_fpath_dirs(&dirs);
-            if suffix.is_empty() {
-                println!("- {} ({}) [fpath]", shown, m.source);
+            let dir_suffix = fs_scan::format_fpath_dirs(&dirs);
+            let dir_part = if dir_suffix.is_empty() {
+                String::new()
             } else {
-                println!("- {} ({}) [fpath: {}]", shown, m.source, suffix);
-            }
+                format!("{} ", format!("[fpath: {}]", dir_suffix).bright_black())
+            };
+
+            let repo_root = p.repos.join(&e.slug);
+            let mut parts = rev_parts_for_repo("fpath", m.rev.as_ref(), &repo_root);
+            parts.fpath_dirs = dirs;
+
+            let kind = fmt_kind(&parts.kind);
+            let commit = fmt_commit(&parts.commit_short);
+
+            println!(
+                "{} {} ({}) {}{}{}",
+                "-".dimmed(),
+                shown.bold().white(),
+                m.source.cyan(),
+                dir_part,
+                if kind.is_empty() {
+                    "".to_string()
+                } else {
+                    kind.to_string()
+                },
+                if commit.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(" {}", commit)
+                },
+            );
         }
     }
 
