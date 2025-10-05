@@ -98,6 +98,32 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
     compinit -u
   fi
 
+  # update check (non-blocking, cached 24h)
+  if [[ -z "${RZ_NO_UPDATE_CHECK:-}" ]]; then
+    {
+      typeset cache="$RZ_HOME/.last_version_check"
+      typeset now last
+      now="$(date +%s 2>/dev/null)"
+      if [[ -f "$cache" ]]; then
+        last="$(<"$cache")"
+      else
+        last=0
+      fi
+      # Only check once per 24 hours
+      if (( ${now:-0} - ${last:-0} >= 86400 )); then
+        print -r -- "${now:-0}" >| "$cache"
+        typeset current latest api
+        current="$("$RZ_BIN/rz" --version 2>/dev/null | awk '{print $2}')"
+        api="https://api.github.com/repos/gotokazuki/rat-zsh/releases/latest"
+        latest="$(curl -fsSL "$api" 2>/dev/null | grep -oE '"tag_name": *\"[^\"]+\"' | sed -E 's/.*\"([^\"]+)\".*/\1/')"
+        if [[ -n "$latest" && -n "$current" && "$latest" != "$current" ]]; then
+          print -P "%F{yellow}rat-zsh update available%f %F{blue}($current → $latest)%f"
+          print -P "  Run %F{green}rz upgrade%f to update."
+        fi
+      fi
+    } &!
+  fi
+
   # Source-order management (tail plugins last)
   typeset -a _rz_tail_slugs=(
     zsh-users__zsh-autosuggestions
