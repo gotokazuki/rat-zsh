@@ -69,8 +69,8 @@ pub fn cmd_init() -> Result<()> {
         )
     };
 
-    // Render final init.zsh (template with {FPATh_SNIPPET} placeholder)
-    let script = INIT_ZSH_TEMPLATE.replace("{FPATh_SNIPPET}", &fpath_snippet);
+    // Render final init.zsh (template with {fpath_snippet} placeholder)
+    let script = INIT_ZSH_TEMPLATE.replace("{fpath_snippet}", &fpath_snippet);
 
     io::stdout().write_all(script.as_bytes())?;
     Ok(())
@@ -78,7 +78,7 @@ pub fn cmd_init() -> Result<()> {
 
 /// Static init.zsh template.
 /// NOTE:
-/// - {FPATh_SNIPPET} will be replaced at runtime with computed fpath lines.
+/// - {fpath_snippet} will be replaced at runtime with computed fpath lines.
 /// - Avoid `local` in this script (it is eval'ed into user's interactive shell).
 const INIT_ZSH_TEMPLATE: &str = r#"# rat-zsh init
 if [[ -z "${_RZ_INIT:-}" ]]; then
@@ -90,12 +90,38 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   # Prepend rz bin to PATH
   export PATH="$RZ_BIN:$PATH"
 
-{FPATh_SNIPPET}
+{fpath_snippet}
   # Initialize completion system (must be after fpath is set)
   autoload -Uz compinit
   if [[ -z "${_RZ_COMPINIT_DONE:-}" ]]; then
     typeset -g _RZ_COMPINIT_DONE=1
     compinit -u
+  fi
+
+  # update check (non-blocking, cached 24h)
+  if [[ -z "${RZ_NO_UPDATE_CHECK:-}" ]]; then
+    {
+      typeset cache="$RZ_HOME/.last_version_check"
+      typeset now last
+      now="$(date +%s 2>/dev/null)"
+      if [[ -f "$cache" ]]; then
+        last="$(<"$cache")"
+      else
+        last=0
+      fi
+      # Only check once per 24 hours
+      if (( ${now:-0} - ${last:-0} >= 86400 )); then
+        print -r -- "${now:-0}" >| "$cache"
+        typeset current latest api
+        current="$("$RZ_BIN/rz" --version 2>/dev/null | awk '{print $2}')"
+        api="https://api.github.com/repos/gotokazuki/rat-zsh/releases/latest"
+        latest="$(curl -fsSL "$api" 2>/dev/null | grep -oE '"tag_name": *\"[^\"]+\"' | sed -E 's/.*\"([^\"]+)\".*/\1/')"
+        if [[ -n "$latest" && -n "$current" && "$latest" != "$current" ]]; then
+          print -P "%F{yellow}rat-zsh update available%f %F{blue}($current → $latest)%f"
+          print -P "  Run %F{green}rz upgrade%f to update."
+        fi
+      fi
+    } &!
   fi
 
   # Source-order management (tail plugins last)
@@ -109,7 +135,7 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
   _rz_tail=()
 
   # Classify plugin entries under $RZ_PLUGINS
-  typeset p target slug
+  typeset p target slug s
   for p in "$RZ_PLUGINS"/*(N@-); do
     target="${p:A}"
     slug=""
