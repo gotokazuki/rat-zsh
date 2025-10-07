@@ -116,8 +116,13 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
         current="$("$RZ_BIN/rz" --version 2>/dev/null | awk '{print $2}')"
         api="https://api.github.com/repos/gotokazuki/rat-zsh/releases/latest"
         latest="$(curl -fsSL "$api" 2>/dev/null | grep -oE '"tag_name": *\"[^\"]+\"' | sed -E 's/.*\"([^\"]+)\".*/\1/')"
-        if [[ -n "$latest" && -n "$current" && "$latest" != "$current" ]]; then
-          print -P "%F{yellow}rat-zsh update available%f %F{blue}($current → $latest)%f"
+
+        # Normalize
+        current_n="${current#v}"
+        latest_n="${latest#v}"
+
+        if [[ -n "$latest_n" && -n "$current_n" && "$latest_n" != "$current_n" ]]; then
+          print -P "%F{yellow}rat-zsh update available%f %F{blue}(v$current_n → v$latest_n)%f"
           print -P "  Run %F{green}rz upgrade%f to update."
         fi
       fi
