@@ -1,6 +1,6 @@
 <h1>
 <p align="center">
-<img src="../images/icon/rat-zsh.png" alt="rat-zsh icon" width="256" /><br />
+<img src="../assets/icons/rat-zsh.png" alt="rat-zsh icon" width="256" /><br />
 Rat Zsh
 </p>
 </h1>
