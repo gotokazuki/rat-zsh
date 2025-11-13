@@ -30,3 +30,8 @@ bump-version-minor:
 bump-version-major:
 	cargo set-version --bump major
 	@echo "✅ Bumped major version → $$(grep '^version' Cargo.toml | head -1 | cut -d'\"' -f2)"
+
+gen-icons:
+	aseprite -b assets/icons/rat-zsh.aseprite --scale 1 --save-as rat-zsh.png
+	aseprite -b assets/icons/rat-zsh.aseprite --scale 2 --save-as rat-zsh@2.png
+	aseprite -b assets/icons/rat-zsh.aseprite --scale 4 --save-as rat-zsh@4.png
