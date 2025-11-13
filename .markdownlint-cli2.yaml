@@ -10,3 +10,6 @@ config:
       - a
       - img
       - br
+
+  MD060:
+    style: consistent
