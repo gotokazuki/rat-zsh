@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::process::Command;
 
 use crate::config::Config;
 use crate::paths::Paths;
@@ -18,6 +19,15 @@ pub struct SyncJob {
     pub kind_fpath: bool,
     pub file_hint: Option<String>,
     pub rev: Option<String>,
+}
+
+fn command_exists(cmd: &str) -> bool {
+    Command::new("sh")
+        .arg("-c")
+        .arg(format!("command -v {}", cmd))
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Build synchronization jobs from the parsed configuration.
@@ -41,6 +51,23 @@ pub fn build_jobs(cfg: &Config, p: &Paths) -> (Vec<SyncJob>, HashSet<String>, Ha
     let mut jobs: Vec<SyncJob> = Vec::new();
 
     for pl in &cfg.plugins {
+        if !pl.requires.is_empty() {
+            let missing: Vec<_> = pl
+                .requires
+                .iter()
+                .filter(|cmd| !command_exists(cmd))
+                .collect();
+
+            if !missing.is_empty() {
+                eprintln!(
+                    "\x1b[33mskip plugin {}: missing required commands {:?}\x1b[0m",
+                    pl.name.as_deref().unwrap_or(&pl.repo),
+                    missing
+                );
+                continue;
+            }
+        }
+
         if pl.repo.trim().is_empty() {
             continue;
         }
@@ -102,6 +129,7 @@ mod tests {
                     r#type: None,
                     name: None,
                     fpath_dirs: Vec::new(),
+                    requires: Vec::new(),
                 },
                 Plugin {
                     source: "github".into(),
@@ -111,6 +139,7 @@ mod tests {
                     r#type: Some("fpath".into()),
                     name: Some("comps".into()),
                     fpath_dirs: Vec::new(),
+                    requires: Vec::new(),
                 },
                 Plugin {
                     source: "github".into(),
@@ -120,6 +149,7 @@ mod tests {
                     r#type: None,
                     name: None,
                     fpath_dirs: Vec::new(),
+                    requires: Vec::new(),
                 },
             ],
         };
@@ -187,6 +217,7 @@ mod tests {
                     r#type: None,
                     name: None,
                     fpath_dirs: Vec::new(),
+                    requires: Vec::new(),
                 },
                 Plugin {
                     source: "github".into(),
@@ -196,6 +227,7 @@ mod tests {
                     r#type: None,
                     name: None,
                     fpath_dirs: Vec::new(),
+                    requires: Vec::new(),
                 },
             ],
         };
