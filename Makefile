@@ -21,15 +21,15 @@ lint-md:
 
 bump-version-patch:
 	cargo set-version --bump patch
-	@echo "✅ Bumped patch version → $$(grep '^version' Cargo.toml | head -1 | cut -d'\"' -f2)"
+	@echo "✅ Bumped patch version → $$(awk -F '\"' '/^version =/ {print $$2}' Cargo.toml)"
 
 bump-version-minor:
 	cargo set-version --bump minor
-	@echo "✅ Bumped minor version → $$(grep '^version' Cargo.toml | head -1 | cut -d'\"' -f2)"
+	@echo "✅ Bumped minor version → $$(awk -F '\"' '/^version =/ {print $$2}' Cargo.toml)"
 
 bump-version-major:
 	cargo set-version --bump major
-	@echo "✅ Bumped major version → $$(grep '^version' Cargo.toml | head -1 | cut -d'\"' -f2)"
+	@echo "✅ Bumped major version → $$(awk -F '\"' '/^version =/ {print $$2}' Cargo.toml)"
 
 gen-icons:
 	aseprite -b assets/icons/rat-zsh.aseprite --scale 1 --save-as assets/icons/rat-zsh.png
