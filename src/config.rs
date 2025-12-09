@@ -43,6 +43,8 @@ pub struct Plugin {
     pub name: Option<String>,
     #[serde(default)]
     pub fpath_dirs: Vec<String>,
+    #[serde(default)]
+    pub requires: Vec<String>,
 }
 
 /// Load and parse a configuration file from the given path.

@@ -94,6 +94,13 @@ source = "github"
 repo = "gotokazuki/rat-zsh"
 type = "fpath"
 fpath_dirs = ["contrib/completions/zsh"]
+
+[[plugins]]
+source = "github"
+repo = "Aloxaf/fzf-tab"
+type = "source"
+file = "fzf-tab.plugin.zsh"
+requires = ["fzf"]
 ```
 
 ### Supported keys
@@ -107,6 +114,37 @@ fpath_dirs = ["contrib/completions/zsh"]
 | type         | `"source"` or `"fpath"` (default: `"source"`) |
 | name         | Optional. Alias name for the plugin |
 | fpath_dirs   | Optional. List of directories (relative to the repo root) to include in `$fpath` when `type = "fpath"` |
+| requires     | Optional. List of commands required for this plugin to be synced and loaded |
+
+### Conditional plugin loading with requires
+
+Some plugins should only load when tools like fzf or peco are available.<br>
+You can declare such requirements using the requires field:
+
+```toml
+[[plugins]]
+source = "github"
+repo = "Aloxaf/fzf-tab"
+type = "source"
+file = "fzf-tab.plugin.zsh"
+requires = ["fzf"]
+```
+
+Behavior:
+
+- If all commands listed in requires exist in `$PATH`, Rat Zsh will sync and load the plugin normally.
+- If any required command is missing, the plugin will be skipped entirely:
+  - It is not cloned or updated
+  - No symlink is placed in $(rz home)/plugins/
+  - It will not be loaded by rz init
+
+Example skip message:
+
+```shell
+skip plugin fzf-tab: missing required commands ["fzf"]
+```
+
+This allows conditional, environment-dependent plugin activation without modifying the config file.
 
 ### Example: fpath_dirs usage
 

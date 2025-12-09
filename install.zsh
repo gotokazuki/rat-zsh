@@ -106,6 +106,13 @@ source = "github"
 repo = "gotokazuki/rat-zsh"
 type = "fpath"
 fpath_dirs = ["contrib/completions/zsh"]
+
+[[plugins]]
+source = "github"
+repo = "Aloxaf/fzf-tab"
+type = "source"
+file = "fzf-tab.plugin.zsh"
+requires = ["fzf"]
 EOF
   _rz_info "Wrote sample config: $CONFIG"
 fi
