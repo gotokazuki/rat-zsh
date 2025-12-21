@@ -269,6 +269,44 @@ rz list     # Show plugins in the effective load order with source/type metadata
 rz home     # Show the rz home directory
 ```
 
+### Checking plugin update status
+
+You can check whether attached plugins have upstream updates by using the `--check-update` (`-u`) option with `rz list`.
+
+```zsh
+rz list -u
+```
+
+When this option is specified, Rat Zsh will access Git repositories
+and display additional status indicators at the end of each plugin entry.
+
+#### Status symbols
+
+| Symbol | Meaning |
+| --- | --- |
+| +N | The upstream branch has N new commits (updates available) |
+| -N | The local branch is N commits ahead of upstream |
+| +/- | Upstream and local branches are in sync |
+| * | The working tree has uncommitted changes |
+| ? | Upstream status is unknown or could not be checked |
+
+- These symbols are shown only for plugins attached to a branch.
+- Plugins pinned to a specific commit or tag do not track upstream changes.
+  In such cases, only * (dirty working tree) may be shown.
+- Symbols are displayed in color when output is connected to a TTY.
+
+#### Example output
+
+```zsh
+Source order
+- Aloxaf/fzf-tab (github) [source] @master (fac1451) +3/-
+- zsh-users/zsh-autosuggestions (github) [source] @master (85919cd) +/-2 *
+- zsh-users/zsh-syntax-highlighting (github) [source] @master (5eb677b) +/-
+
+fpath
+- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh] @main (29e2a7b) *
+```
+
 ## Update
 
 Update Rat Zsh itself:

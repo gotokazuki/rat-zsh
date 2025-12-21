@@ -1,4 +1,5 @@
 use crate::config::load_config;
+use crate::git::{UpdateStatus, attached_update_status, is_dirty_repo_root};
 use crate::paths::paths;
 use anyhow::Result;
 use colored::Colorize;
@@ -122,9 +123,22 @@ fn git_rev_for_repo(repo_root: &Path) -> Option<GitRev> {
     None
 }
 
+fn is_hex_sha(s: &str) -> bool {
+    let s = s.trim();
+    (7..=40).contains(&s.len()) && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 fn rev_parts_for_repo(role: &'static str, cfg_rev: Option<&String>, repo_root: &Path) -> RevParts {
     if let Some(info) = git_rev_for_repo(repo_root) {
         if let Some(r) = cfg_rev {
+            if is_hex_sha(r) {
+                return RevParts {
+                    role_label: role,
+                    kind: Some(RevKind::Detached),
+                    commit_short: Some(short7(r)),
+                    ..Default::default()
+                };
+            }
             return RevParts {
                 role_label: role,
                 kind: Some(RevKind::Branch { name: r.clone() }),
@@ -238,7 +252,7 @@ fn fmt_role(role: &str) -> String {
 ///
 /// # Errors
 /// Returns an error if configuration loading fails or if plugin directory scanning fails.
-pub fn cmd_list() -> Result<()> {
+pub fn cmd_list(check_update: bool) -> Result<()> {
     let cfg = load_config()?;
     let mut meta: HashMap<String, Meta> = HashMap::new();
     for pl in cfg.plugins {
@@ -273,8 +287,27 @@ pub fn cmd_list() -> Result<()> {
             let commit = fmt_commit(&parts.commit_short);
             let role = fmt_role(parts.role_label);
 
+            let git_status = if check_update {
+                match &parts.kind {
+                    Some(RevKind::Branch { name }) => {
+                        let st = attached_update_status(&repo_root, name);
+                        fmt_update_suffix_from_status(&st)
+                    }
+                    Some(RevKind::Detached) | Some(RevKind::Tag { .. }) => {
+                        if is_dirty_repo_root(&repo_root) {
+                            format!(" {}", "*".red().bold())
+                        } else {
+                            String::new()
+                        }
+                    }
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            };
+
             println!(
-                "{} {} ({}) {}{}{}",
+                "{} {} ({}) {}{}{}{}",
                 "-".dimmed(),
                 shown.bold().white(),
                 m.source.cyan(),
@@ -289,6 +322,7 @@ pub fn cmd_list() -> Result<()> {
                 } else {
                     format!(" {}", commit)
                 },
+                git_status,
             );
         } else {
             println!("- {}", e.display);
@@ -320,8 +354,27 @@ pub fn cmd_list() -> Result<()> {
             let kind = fmt_kind(&parts.kind);
             let commit = fmt_commit(&parts.commit_short);
 
+            let git_status = if check_update {
+                match &parts.kind {
+                    Some(RevKind::Branch { name }) => {
+                        let st = attached_update_status(&repo_root, name);
+                        fmt_update_suffix_from_status(&st)
+                    }
+                    Some(RevKind::Detached) | Some(RevKind::Tag { .. }) => {
+                        if is_dirty_repo_root(&repo_root) {
+                            format!(" {}", "*".red().bold())
+                        } else {
+                            String::new()
+                        }
+                    }
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            };
+
             println!(
-                "{} {} ({}) {}{}{}",
+                "{} {} ({}) {}{}{}{}",
                 "-".dimmed(),
                 shown.bold().white(),
                 m.source.cyan(),
@@ -336,9 +389,43 @@ pub fn cmd_list() -> Result<()> {
                 } else {
                     format!(" {}", commit)
                 },
+                git_status,
             );
         }
     }
 
     Ok(())
+}
+
+fn fmt_update_suffix_from_status(st: &UpdateStatus) -> String {
+    if st.unknown {
+        let mut parts: Vec<String> = vec![];
+        if st.dirty {
+            parts.push("*".red().bold().to_string());
+        }
+        parts.push("?".red().bold().to_string());
+        return format!(" {}", parts.join(" "));
+    }
+
+    let plus = if st.behind == 0 {
+        "+".blue().to_string()
+    } else {
+        format!("+{}", st.behind).blue().to_string()
+    };
+
+    let slash = "/".white().to_string();
+
+    let minus = if st.ahead == 0 {
+        "-".red().bold().to_string()
+    } else {
+        format!("-{}", st.ahead).red().bold().to_string()
+    };
+
+    let mut parts: Vec<String> = vec![format!("{}{}{}", plus, slash, minus)];
+
+    if st.dirty {
+        parts.push("*".red().bold().to_string());
+    }
+
+    format!(" {}", parts.join(" "))
 }

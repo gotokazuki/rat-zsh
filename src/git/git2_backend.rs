@@ -1,10 +1,18 @@
 use anyhow::{Context, Result, anyhow};
 use git2::{
     BranchType, Cred, FetchOptions, ObjectType, Reference, RemoteCallbacks, Repository, ResetType,
-    SubmoduleUpdateOptions,
+    StatusOptions, SubmoduleUpdateOptions,
     build::{CheckoutBuilder, RepoBuilder},
 };
 use std::path::Path;
+
+#[derive(Debug, Clone)]
+pub struct UpdateStatus {
+    pub unknown: bool,
+    pub dirty: bool,
+    pub ahead: usize,
+    pub behind: usize,
+}
 
 /// Build a `FetchOptions` with SSH-agent credentials enabled.
 ///
@@ -230,4 +238,91 @@ pub fn checkout_rev(repo: &Repository, rev: &str) -> Result<()> {
     repo.checkout_tree(commit.as_object(), None)?;
     repo.set_head_detached(commit.id())?;
     Ok(())
+}
+
+pub fn is_dirty(repo: &Repository) -> bool {
+    let mut opt = StatusOptions::new();
+    opt.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+
+    match repo.statuses(Some(&mut opt)) {
+        Ok(statuses) => !statuses.is_empty(),
+        Err(_) => false,
+    }
+}
+
+pub fn is_dirty_repo_root(repo_root: &Path) -> bool {
+    match Repository::open(repo_root) {
+        Ok(repo) => is_dirty(&repo),
+        Err(_) => false,
+    }
+}
+
+pub fn attached_update_status(repo_root: &Path, branch: &str) -> UpdateStatus {
+    let repo = match Repository::open(repo_root) {
+        Ok(r) => r,
+        Err(_) => {
+            return UpdateStatus {
+                unknown: true,
+                dirty: false,
+                ahead: 0,
+                behind: 0,
+            };
+        }
+    };
+
+    let dirty = is_dirty(&repo);
+
+    if fetch_origin(&repo).is_err() {
+        return UpdateStatus {
+            unknown: true,
+            dirty,
+            ahead: 0,
+            behind: 0,
+        };
+    }
+
+    let local_refname = format!("refs/heads/{}", branch);
+    let upstream_refname = format!("refs/remotes/origin/{}", branch);
+
+    let local_oid = repo
+        .find_reference(&local_refname)
+        .and_then(|r| {
+            r.target()
+                .ok_or_else(|| git2::Error::from_str("local ref has no target"))
+        })
+        .or_else(|_| {
+            repo.head()?
+                .target()
+                .ok_or_else(|| git2::Error::from_str("HEAD has no target"))
+        });
+
+    let upstream_oid = repo.find_reference(&upstream_refname).and_then(|r| {
+        r.target()
+            .ok_or_else(|| git2::Error::from_str("upstream ref has no target"))
+    });
+
+    let (local_oid, upstream_oid) = match (local_oid, upstream_oid) {
+        (Ok(l), Ok(u)) => (l, u),
+        _ => {
+            return UpdateStatus {
+                unknown: true,
+                dirty,
+                ahead: 0,
+                behind: 0,
+            };
+        }
+    };
+
+    let (ahead, behind) = repo
+        .graph_ahead_behind(local_oid, upstream_oid)
+        .unwrap_or((0, 0));
+
+    UpdateStatus {
+        unknown: false,
+        dirty,
+        ahead,
+        behind,
+    }
 }
