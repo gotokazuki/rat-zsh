@@ -43,7 +43,10 @@ enum Cmd {
     /// Update rat-zsh itself to the latest release
     Upgrade,
     /// List parsed plugins
-    List,
+    List {
+        #[arg(short = 'u', long = "check-update")]
+        check_update: bool,
+    },
     /// Show plugins in the effective load order with source/type metadata
     Home,
 }
@@ -59,7 +62,7 @@ fn main() -> Result<()> {
         Cmd::Init => cmd_init(),
         Cmd::Sync => cmd_sync(),
         Cmd::Upgrade => cmd_upgrade(),
-        Cmd::List => cmd_list(),
+        Cmd::List { check_update } => cmd_list(check_update),
         Cmd::Home => {
             println!("{}", rz_home()?.display());
             Ok(())

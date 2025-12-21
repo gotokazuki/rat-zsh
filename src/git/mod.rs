@@ -13,4 +13,4 @@ mod git2_backend;
 ///
 /// This is the only public API exported from the `git` module.
 /// Other modules should use this instead of depending directly on `git2_backend`.
-pub use git2_backend::ensure_repo;
+pub use git2_backend::{UpdateStatus, attached_update_status, ensure_repo, is_dirty_repo_root};
