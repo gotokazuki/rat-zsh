@@ -1,6 +1,6 @@
 <h1>
 <p align="center">
-<img src="../assets/icons/rat-zsh@4x.png" alt="rat-zsh icon" width="128" /><br />
+<img src="./assets/icons/rat-zsh@4x.png" alt="rat-zsh icon" width="128" /><br />
 Rat Zsh
 </p>
 </h1>
@@ -351,4 +351,4 @@ eval "$("${XDG_CONFIG_HOME:-$HOME}/.rz/bin/rz" init)"
 
 ## License
 
-MIT License. See [LICENSE](../LICENSE) for details.
+MIT License. See [LICENSE](./LICENSE) for details.
