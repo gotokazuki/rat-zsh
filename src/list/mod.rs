@@ -408,17 +408,17 @@ fn fmt_update_suffix_from_status(st: &UpdateStatus) -> String {
     }
 
     let plus = if st.behind == 0 {
-        "+".blue().to_string()
+        "↓".blue().to_string()
     } else {
-        format!("+{}", st.behind).blue().to_string()
+        format!("↓{}", st.behind).blue().to_string()
     };
 
     let slash = "/".white().to_string();
 
     let minus = if st.ahead == 0 {
-        "-".red().bold().to_string()
+        "↑".red().bold().to_string()
     } else {
-        format!("-{}", st.ahead).red().bold().to_string()
+        format!("↑{}", st.ahead).red().bold().to_string()
     };
 
     let mut parts: Vec<String> = vec![format!("{}{}{}", plus, slash, minus)];

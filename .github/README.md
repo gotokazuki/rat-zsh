@@ -284,9 +284,9 @@ and display additional status indicators at the end of each plugin entry.
 
 | Symbol | Meaning |
 | --- | --- |
-| +N | The upstream branch has N new commits (updates available) |
-| -N | The local branch is N commits ahead of upstream |
-| +/- | Upstream and local branches are in sync |
+| ↓N | The upstream branch has N new commits (updates available) |
+| ↑N | The local branch is N commits ahead of upstream |
+| ↓/↑ | Upstream and local branches are in sync |
 | * | The working tree has uncommitted changes |
 | ? | Upstream status is unknown or could not be checked |
 
@@ -299,12 +299,12 @@ and display additional status indicators at the end of each plugin entry.
 
 ```zsh
 Source order
-- Aloxaf/fzf-tab (github) [source] @master (fac1451) +3/-
-- zsh-users/zsh-autosuggestions (github) [source] @master (85919cd) +/-2 *
-- zsh-users/zsh-syntax-highlighting (github) [source] @master (5eb677b) +/-
+- Aloxaf/fzf-tab (github) [source] @master (fac1451) ↓3/↑
+- zsh-users/zsh-autosuggestions (github) [source] @master (85919cd) ↓/↑2 *
+- zsh-users/zsh-syntax-highlighting (github) [source] @master (5eb677b) ↓/↑
 
 fpath
-- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh] @main (29e2a7b) *
+- gotokazuki/rat-zsh (github) [fpath: contrib/completions/zsh] @main (29e2a7b) ↓/↑ *
 ```
 
 ## Update
