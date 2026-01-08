@@ -1,4 +1,4 @@
-use crate::config::load_config;
+use crate::settings::load_config;
 use crate::git::{UpdateStatus, attached_update_status, is_dirty_repo_root};
 use crate::paths::paths;
 use anyhow::Result;

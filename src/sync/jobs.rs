@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::config::Config;
+use crate::settings::Config;
 use crate::paths::Paths;
 
 /// Represents a single plugin synchronization job.
@@ -101,7 +101,7 @@ pub fn build_jobs(cfg: &Config, p: &Paths) -> (Vec<SyncJob>, HashSet<String>, Ha
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Plugin;
+    use crate::settings::Plugin;
     use std::collections::HashSet;
     use tempfile::tempdir;
 

@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use crate::config::load_config;
+use crate::settings::load_config;
 use crate::paths::paths;
 
 /// Escape a path for safe inclusion in a Zsh double-quoted string.

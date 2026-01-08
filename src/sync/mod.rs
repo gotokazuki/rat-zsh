@@ -2,7 +2,7 @@ mod cleanup;
 mod jobs;
 mod resolve;
 
-use crate::config::load_config;
+use crate::settings::load_config;
 use crate::git::ensure_repo;
 use crate::paths::paths;
 use crate::progress::{err_style, ok_style, spinner_style};
