@@ -2,8 +2,8 @@ use anyhow::Result;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use crate::config::load_config;
 use crate::paths::paths;
+use crate::settings::load_config;
 
 /// Escape a path for safe inclusion in a Zsh double-quoted string.
 fn zsh_quote_path(p: &str) -> String {
