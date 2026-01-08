@@ -263,10 +263,21 @@ fpath
 
 ```zsh
 rz init     # Print initialization code for .zshrc
+rz config   # Open the configuration file
 rz sync     # Clone/update plugins defined in config.toml
 rz upgrade  # Update rat-zsh itself to the latest release
 rz list     # Show plugins in the effective load order with source/type metadata
 rz home     # Show the rz home directory
+```
+
+### Editing configuration
+
+You can open the configuration file using the `rz config` command.  
+It respects the `EDITOR` environment variable (defaults to `vim` if unset).
+
+```zsh
+# Open with code, nano, etc.
+EDITOR=code rz config
 ```
 
 ### Checking plugin update status

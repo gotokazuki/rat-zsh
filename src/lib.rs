@@ -6,6 +6,7 @@
 //!
 //! This file is primarily intended for developers hacking on `rz`.
 
+mod config;
 mod git;
 mod init;
 mod list;
@@ -16,6 +17,7 @@ mod sync;
 mod upgrade;
 
 /// Re-export commonly used types and commands so they can be accessed from `rz::*`.
+pub use config::cmd_config;
 pub use init::cmd_init;
 pub use list::cmd_list;
 pub use paths::rz_home;
