@@ -2,10 +2,10 @@ mod cleanup;
 mod jobs;
 mod resolve;
 
-use crate::settings::load_config;
 use crate::git::ensure_repo;
 use crate::paths::paths;
 use crate::progress::{err_style, ok_style, spinner_style};
+use crate::settings::load_config;
 use crate::sync::cleanup::{cleanup_stale_plugins, cleanup_stale_repos};
 
 use anyhow::{Context, Result};

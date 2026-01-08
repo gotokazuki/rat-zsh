@@ -1,6 +1,6 @@
-use crate::settings::load_config;
 use crate::git::{UpdateStatus, attached_update_status, is_dirty_repo_root};
 use crate::paths::paths;
+use crate::settings::load_config;
 use anyhow::Result;
 use colored::Colorize;
 use order::{PluginEntry, resolve_order};

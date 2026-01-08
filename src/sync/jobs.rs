@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::settings::Config;
 use crate::paths::Paths;
+use crate::settings::Config;
 
 /// Represents a single plugin synchronization job.
 ///
