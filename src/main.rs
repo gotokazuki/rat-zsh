@@ -14,7 +14,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use rz::{cmd_init, cmd_list, cmd_sync, cmd_upgrade, rz_home};
+use rz::{cmd_config, cmd_init, cmd_list, cmd_sync, cmd_upgrade, rz_home};
 
 /// Command-line interface definition.
 ///
@@ -38,6 +38,8 @@ struct Cli {
 enum Cmd {
     /// Print initialization code for .zshrc
     Init,
+    /// Open the configuration file
+    Config,
     /// Clone/update plugins defined in config.toml
     Sync,
     /// Update rat-zsh itself to the latest release
@@ -60,6 +62,7 @@ fn main() -> Result<()> {
 
     match cmd {
         Cmd::Init => cmd_init(),
+        Cmd::Config => cmd_config(),
         Cmd::Sync => cmd_sync(),
         Cmd::Upgrade => cmd_upgrade(),
         Cmd::List { check_update } => cmd_list(check_update),
