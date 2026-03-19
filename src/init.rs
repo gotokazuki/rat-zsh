@@ -115,7 +115,7 @@ if [[ -z "${_RZ_INIT:-}" ]]; then
         typeset current latest api
         current="$("$RZ_BIN/rz" --version 2>/dev/null | awk '{print $2}')"
         api="https://api.github.com/repos/gotokazuki/rat-zsh/releases/latest"
-        latest="$(curl -fsSL "$api" 2>/dev/null | grep -oE '"tag_name": *\"[^\"]+\"' | sed -E 's/.*\"([^\"]+)\".*/\1/')"
+        latest="$(curl -fsSL "$api" 2>/dev/null | grep -oE '"tag_name": *"[^"]+"' | sed -E 's/.*"([^"]+)".*/\1/')"
 
         # Normalize
         current_n="${current#v}"
